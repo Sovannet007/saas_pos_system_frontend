@@ -1,0 +1,71 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@300;400;500;600;700&display=swap");
+@import "antd/dist/reset.css";
+@import "simplebar-react/dist/simplebar.min.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden; /* 👈 stop the native page scrollbar */
+}
+body {
+  @apply font-kh bg-gray-50 text-gray-900;
+}
+
+/* ===== Global scrollbar styling ===== */
+:root {
+  --sb-size: 6px; /* thinner */
+  --sb-thumb: #16a34a; /* green-600 */
+  --sb-thumb-hover: #15803d; /* green-700 */
+}
+
+* {
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb-thumb) transparent;
+}
+
+/* Chrome/Edge/Safari/Opera */
+*::-webkit-scrollbar {
+  width: var(--sb-size);
+  height: var(--sb-size);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--sb-thumb);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+
+  /* ✅ Minimum thumb size (WebKit only) */
+  min-height: 50px; /* pick 100 or 200 to taste */
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--sb-thumb-hover);
+}
+
+/* Tweak SimpleBar look + fixed-ish thumb size */
+.simplebar-scrollbar::before {
+  background: #b317e7; /* green */
+  border-radius: 9999px;
+  min-height: 50px; /* 👈 keep it from being tiny */
+  max-height: 50px; /* 👈 cap the thumb length */
+}
+.simplebar-scrollbar.simplebar-visible::before {
+  opacity: 1; /* always visible */
+}
+.simplebar-track.simplebar-vertical {
+  width: 8px; /* slim */
+}
+.simplebar-track {
+  background: transparent;
+}
