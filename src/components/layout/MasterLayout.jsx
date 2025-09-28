@@ -7,6 +7,12 @@ import { Select, Avatar, Dropdown, Modal, Button } from "antd";
 import { HomeOutlined } from "@ant-design/icons";
 import SimpleBar from "simplebar-react";
 
+// ⬇️ import from MenuContext so we can set menu for perms hook
+import {
+  useMenu,
+  normalizeMenu as ctxNormalize,
+} from "../../context/MenuContext";
+
 // ✅ page imports
 import DashboardPage from "../../pages/DashboardPage";
 import ProductPage from "../../pages/ProductPage";
@@ -44,13 +50,16 @@ export default function MasterLayout() {
   } = useAuth();
   const navigate = useNavigate();
 
+  // ⬇️ get setMenu from MenuContext to feed permissions
+  const { setMenu: setCtxMenu } = useMenu();
+
   const [collapsed, setCollapsed] = useState(false);
   const [menu, setMenu] = useState([]);
   const [switching, setSwitching] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // ✅ Normalize menu
+  // ✅ Normalize menu (kept your structure)
   const normalizeMenu = (apiMenu) => {
     const seen = new Set();
     return (apiMenu || [])
@@ -82,7 +91,9 @@ export default function MasterLayout() {
   // ✅ Fetch menu
   const fetchMenu = async () => {
     const { data } = await getMenuAccess({ companyId: user?.company_id || 0 });
-    setMenu(data?.menu ? normalizeMenu(data.menu) : []);
+    const normalized = data?.menu ? normalizeMenu(data.menu) : [];
+    setMenu(normalized); // for Sidebar (your UI)
+    setCtxMenu(ctxNormalize(data?.menu || [])); // for permissions context
   };
 
   // ✅ Fetch menu when company changes
@@ -90,7 +101,6 @@ export default function MasterLayout() {
     () => {
       fetchMenu();
     },
-    // watch company_id
     // eslint-disable-next-line
     [user?.company_id]
   );
@@ -238,7 +248,7 @@ export default function MasterLayout() {
         </div>
       </div>
 
-      {/* User Settings Modal */}
+      {/* User Settings Modal (unchanged UI) */}
       <Modal
         open={settingsOpen}
         onCancel={() => setSettingsOpen(false)}
@@ -294,7 +304,7 @@ export default function MasterLayout() {
         </div>
       </Modal>
 
-      {/* Logout Modal */}
+      {/* Logout Modal (unchanged UI) */}
       <Modal
         open={logoutOpen}
         onCancel={() => setLogoutOpen(false)}

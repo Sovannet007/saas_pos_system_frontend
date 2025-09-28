@@ -77,7 +77,6 @@ export default function RoleManagementPage() {
 
     try {
       await saveRolePermission({
-        companyId: currentCompany.id,
         roleId: record.role_id,
         moduleId: record.module_id,
         full: perm === "full" ? (value ? 1 : 0) : record.full ? 1 : 0,
@@ -124,7 +123,9 @@ export default function RoleManagementPage() {
       dataIndex: "module_name",
       key: "module_name",
       render: (text) => (
-        <span className="font-medium text-gray-800">{text}</span>
+        <span className="font-medium text-blue-600 cursor-pointer underline">
+          {text}
+        </span>
       ),
     },
     ...perms.map((perm) => ({
@@ -171,8 +172,10 @@ export default function RoleManagementPage() {
         <Card
           key={roleName}
           title={
-            <div className="flex items-center justify-center gap-2">
-              <span className="text-[17px]">Permission for Role</span>
+            <div className="flex items-center  gap-2">
+              <span className="text-[17px]​ font-normal">
+                ការគ្រប់គ្រងសិទ្ទប្រើប្រាស់ចំពោះតួនាទី
+              </span>
               <span className="font-semibold text-xl text-red-600">
                 {roleName}
               </span>
