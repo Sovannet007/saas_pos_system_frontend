@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { Modal, Input, Form, Button, message } from "antd";
+import { useEffect, useState } from "react";
+import { Modal, Input, Form, Button } from "antd";
 import { saveUom } from "../../services/api"; // implement in your API service
+import { notify } from "../../services/notify";
 
 export default function UomModal({ open, onClose, onSaved, initialData }) {
   const [form] = Form.useForm();
@@ -20,24 +21,15 @@ export default function UomModal({ open, onClose, onSaved, initialData }) {
       setLoading(true);
 
       // call api service
-      const res = saveUom(values);
-
-      // follow your CategoryModal convention (res.code === 0 means success)
-      if (res?.code === 0 || res?.data?.code === 0) {
-        message.success("UOM saved successfully");
-        onSaved?.(); // refresh list in parent if provided
-        onClose?.();
-      } else {
-        message.error(res?.message || res?.data?.message || "Error saving UOM");
-      }
+      await saveUom(values);
+      notify({
+        type: "success",
+        message: "UOM saved.",
+      });
+      onSaved?.(); // refresh list in parent if provided
+      onClose?.();
     } catch (err) {
-      // validation errors are handled by antd; only log unexpected errors
-      if (!err?.errorFields) {
-        // not a validation error
-        // eslint-disable-next-line no-console
-        console.error(err);
-        message.error("Unexpected error");
-      }
+      console.log(err);
     } finally {
       setLoading(false);
     }
@@ -52,7 +44,6 @@ export default function UomModal({ open, onClose, onSaved, initialData }) {
       destroyOnClose
     >
       <Form form={form} layout="vertical">
-        {/* keep same casing/payload shape as your CategoryModal */}
         <Form.Item name="Id" hidden>
           <Input />
         </Form.Item>
@@ -63,10 +54,6 @@ export default function UomModal({ open, onClose, onSaved, initialData }) {
           rules={[{ required: true, message: "Please enter UOM name" }]}
         >
           <Input placeholder="e.g., Piece, Box, Kg" />
-        </Form.Item>
-
-        <Form.Item name="Code" label="UOM Code">
-          <Input placeholder="e.g., PCS, BOX, KG" />
         </Form.Item>
 
         <Form.Item name="Description" label="Description">

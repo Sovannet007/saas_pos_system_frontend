@@ -19,21 +19,14 @@ export default function CategoryModal({ open, onClose, onSaved, initialData }) {
     try {
       const values = await form.validateFields();
       setLoading(true);
-      const res = saveCategory(values); // call api service
-      console.log(res);
-      if (res?.code === 0) {
-        notify({
-          type: "success",
-          message: "Category saved.",
-        });
-        onSaved(); // refresh dropdown or table
-        onClose();
-      } else {
-        notify({
-          type: "error",
-          message: "Failed to category saved.",
-        });
-      }
+      await saveCategory(values); // call api service
+      notify({
+        type: "success",
+        message: "Category saved.",
+      });
+      onSaved(); // refresh dropdown or table
+      form.setFieldsValue();
+      onClose();
     } catch (err) {
       console.log(err);
     } finally {

@@ -1,8 +1,8 @@
-//  src/context/MenuContext.jsx
 import { createContext, useContext, useState, useMemo } from "react";
 
 const MenuCtx = createContext(null);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useMenu = () => {
   const ctx = useContext(MenuCtx);
   if (!ctx) throw new Error("useMenu must be used inside <MenuProvider>.");
@@ -10,6 +10,7 @@ export const useMenu = () => {
 };
 
 // --- keep your normalizer exactly as you built it ---
+// eslint-disable-next-line react-refresh/only-export-components
 export const normalizeMenu = (apiMenu) => {
   const seen = new Set();
   return (apiMenu || [])
@@ -81,6 +82,7 @@ export function MenuProvider({ children }) {
     return normalizePerms(hit?.perms);
   };
 
+  // get permission by route
   const getPermsByRoute = (route) => {
     if (!route) return { ...empty };
     const r = String(route).replace(/^\//, "");
@@ -106,6 +108,7 @@ export function MenuProvider({ children }) {
       getPermsByRoute,
       usePagePerms: _usePagePermsInner,
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [menu]
   );
 
@@ -116,6 +119,7 @@ export function MenuProvider({ children }) {
  * 👉 Export a top-level hook so pages can:
  *    import { usePagePerms } from ".../MenuContext";
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const usePagePerms = (key) => {
   const { usePagePerms: _inner } = useMenu();
   return _inner(key);
@@ -130,6 +134,7 @@ export function PermissionGate({
   fallback = null,
 }) {
   const { usePagePerms } = useMenu();
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const perms = moduleName ? usePagePerms(moduleName) : usePagePerms({ route });
   const ok = perms.full || (need ? perms[need] : true);
   return ok ? children : fallback;

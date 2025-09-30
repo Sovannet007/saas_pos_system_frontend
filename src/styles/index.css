@@ -69,3 +69,18 @@ body {
 .simplebar-track {
   background: transparent;
 }
+
+/* For Chrome, Safari, Edge */
+.ant-table-body::-webkit-scrollbar {
+  display: none;
+}
+
+/* For Firefox */
+.ant-table-body {
+  scrollbar-width: none;
+}
+
+/* For IE/Edge legacy */
+.ant-table-body {
+  -ms-overflow-style: none;
+}

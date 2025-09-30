@@ -31,6 +31,8 @@ api.interceptors.response.use(
     return Promise.reject(err);
   }
 );
+// export the api for use in components
+export { api };
 
 // -------------------- Auth Endpoint--------------------
 export const login = (payload) => api.post("/api/v1/user/login", payload);
@@ -48,6 +50,20 @@ export const saveRolePermission = (payload) =>
 // -------------------- Product Endpoint --------------------
 export const getProducts = (payload) =>
   api.post("/api/v1/product/list", payload);
+
+export const saveProduct = (payload) =>
+  api.post("/api/v1/product/save", payload);
+
+// ✅ New: Upload & delete photo
+export const uploadProductPhoto = (formData) =>
+  api.post("/api/v1/product/upload-photo", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+export const getProductMedia = (productId) =>
+  api.post("/api/v1/product/media-list", productId);
+
+export const deleteProductPhoto = (payload) =>
+  api.post("/api/v1/product/delete-photo", payload);
 
 // -------------------- Master Endpoint --------------------
 export const getMaster = (payload) =>

@@ -1,4 +1,3 @@
-// src/components/Ui/ProductModel.jsx
 import { useEffect, useMemo, useState } from "react";
 import {
   Modal,
@@ -6,7 +5,6 @@ import {
   Input,
   InputNumber,
   Select,
-  Upload,
   Button,
   Row,
   Col,
@@ -116,7 +114,7 @@ export default function ProductModal({
       <Modal
         open={open}
         onCancel={onClose}
-        width={1100}
+        width={900}
         centered
         title={
           <span className="font-semibold text-lg">
@@ -129,11 +127,11 @@ export default function ProductModal({
           </Button>,
           initialValues && (
             <Button
-              key="duplicate"
+              key="copy"
               icon={<CopyOutlined />}
-              onClick={() => onSave?.({ ...initialValues, id: null })}
+              onClick={() => onSave?.({ ...initialValues, id: 0 })}
             >
-              Duplicate
+              Copy
             </Button>
           ),
           <Button
@@ -147,13 +145,16 @@ export default function ProductModal({
         ]}
       >
         <Form form={form} layout="vertical">
-          <Row gutter={16}>
-            {/* LEFT SIDE */}
-            <Col span={16}>
+          <Row gutter={24}>
+            <Col span={24}>
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item label="លេខរាងផលិតផល" name="id">
-                    <Input placeholder="Product ID" disabled />
+                    <Input
+                      placeholder="Product ID"
+                      disabled
+                      className="rounded-md"
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
@@ -162,7 +163,7 @@ export default function ProductModal({
                     name="code"
                     rules={[{ required: true }]}
                   >
-                    <Input placeholder="Product Code" />
+                    <Input placeholder="Product Code" className="rounded-md" />
                   </Form.Item>
                 </Col>
               </Row>
@@ -172,11 +173,10 @@ export default function ProductModal({
                 name="name"
                 rules={[{ required: true }]}
               >
-                <Input placeholder="Product Name..." />
+                <Input placeholder="Product Name..." className="rounded-md" />
               </Form.Item>
 
               <Row gutter={16}>
-                {/* Category (searchable + add new) */}
                 <Col span={12}>
                   <Form.Item
                     label="ប្រភេទផលិតផល - Category"
@@ -188,7 +188,7 @@ export default function ProductModal({
                       placeholder="Select Category"
                       options={categoryOptions}
                       filterOption={filterOption}
-                      // Add a "Add new" action inside dropdown
+                      className="rounded-md"
                       dropdownRender={(menu) => (
                         <>
                           {menu}
@@ -209,7 +209,6 @@ export default function ProductModal({
                   </Form.Item>
                 </Col>
 
-                {/* UOM (searchable + add new) */}
                 <Col span={12}>
                   <Form.Item
                     label="រង្វាស់ខ្នាត​ - Unit of Measure"
@@ -220,6 +219,7 @@ export default function ProductModal({
                       placeholder="Select UOM"
                       options={uomOptions}
                       filterOption={filterOption}
+                      className="rounded-md"
                       dropdownRender={(menu) => (
                         <>
                           {menu}
@@ -248,11 +248,14 @@ export default function ProductModal({
                     name="qty"
                     initialValue={0}
                   >
-                    <InputNumber min={0} style={{ width: "100%" }} />
+                    <InputNumber
+                      min={0}
+                      style={{ width: "100%" }}
+                      className="rounded-md"
+                    />
                   </Form.Item>
                 </Col>
 
-                {/* 💸 Cost field visible only if user has cost permission */}
                 {canCost && (
                   <Col span={6}>
                     <Form.Item
@@ -264,12 +267,12 @@ export default function ProductModal({
                         min={0}
                         step={0.01}
                         style={{ width: "100%" }}
+                        className="rounded-md"
                       />
                     </Form.Item>
                   </Col>
                 )}
 
-                {/* If cost hidden, salePrice expands to keep row balance */}
                 <Col span={canCost ? 6 : 12}>
                   <Form.Item
                     label="តម្លៃលក់ - Sale Price"
@@ -280,34 +283,18 @@ export default function ProductModal({
                       min={0}
                       step={0.01}
                       style={{ width: "100%" }}
+                      className="rounded-md"
                     />
                   </Form.Item>
                 </Col>
               </Row>
 
               <Form.Item label="សម្គាល់ - Description" name="description">
-                <Input.TextArea rows={3} placeholder="Product Description" />
-              </Form.Item>
-            </Col>
-
-            {/* RIGHT SIDE: MEDIA */}
-            <Col span={8}>
-              <Form.Item label="Default Photo" name="defaultPhoto">
-                <Upload listType="picture-card" maxCount={1}>
-                  <div>
-                    <PlusOutlined />
-                    <div style={{ marginTop: 8 }}>Upload</div>
-                  </div>
-                </Upload>
-              </Form.Item>
-
-              <Form.Item label="រូបភាពទំនិញ / Public Photo" name="publicPhotos">
-                <Upload listType="picture-card" multiple>
-                  <div>
-                    <PlusOutlined />
-                    <div style={{ marginTop: 8 }}>Upload</div>
-                  </div>
-                </Upload>
+                <Input.TextArea
+                  rows={3}
+                  placeholder="Product Description"
+                  className="rounded-md"
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -319,7 +306,6 @@ export default function ProductModal({
         open={catModalOpen}
         onClose={() => setCatModalOpen(false)}
         onSaved={afterSavedCategory}
-        // initialData={...} // when you need editing
       />
 
       {/* 🧩 UOM mini modal */}
@@ -327,7 +313,6 @@ export default function ProductModal({
         open={uomModalOpen}
         onClose={() => setUomModalOpen(false)}
         onSaved={afterSavedUom}
-        // initialData={...}
       />
     </>
   );

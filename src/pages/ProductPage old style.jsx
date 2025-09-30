@@ -46,6 +46,7 @@ export default function ProductPage() {
   // photo modal
   const [photoModalOpen, setPhotoModalOpen] = useState(false);
   const [photoProduct, setPhotoProduct] = useState(null);
+  const [media, setMedia] = useState([]);
 
   const [pageSize, setPageSize] = useState(10);
 
@@ -80,7 +81,6 @@ export default function ProductPage() {
     try {
       const res = await getProducts({ companyId: currentCompany.id });
       let rows = Array.isArray(res?.data?.product) ? res.data.product : [];
-
       if (keyword) {
         const kw = keyword.toLowerCase();
         rows = rows.filter(
@@ -89,33 +89,7 @@ export default function ProductPage() {
             p.code?.toLowerCase().includes(kw)
         );
       }
-
-      // 🔹 Group products by category
-      const groups = {};
-      rows.forEach((p) => {
-        if (!groups[p.category]) groups[p.category] = [];
-        groups[p.category].push(p);
-      });
-
-      // 🔹 Flatten into rows with category header rows
-      const groupedRows = [];
-      Object.entries(groups).forEach(([cat, items]) => {
-        groupedRows.push({
-          isCategory: true,
-          key: `cat-${cat}`,
-          category: toTitleCase(cat), // ✅ format here
-          count: items.length, // product count
-        });
-        items.forEach((p) =>
-          groupedRows.push({
-            ...p,
-            isCategory: false,
-            key: `prod-${p.id}`,
-          })
-        );
-      });
-
-      setData(groupedRows);
+      setData(rows);
     } catch (e) {
       notify({
         type: "error",
@@ -150,12 +124,14 @@ export default function ProductPage() {
     setModalOpen(true);
   };
 
+  // 📌 Fetch all photos for product
   const handleOpenPhotoModal = async (product) => {
     try {
       const res = await getProductMedia({ id: product.id });
       if (res.data?.code === 200) {
         const media = res.data.media || [];
 
+        // separate default & optional
         const defaultPhoto = normalizePath(
           media.find((m) => m.isDefault)?.path
         );
@@ -163,6 +139,7 @@ export default function ProductPage() {
           .filter((m) => !m.isDefault)
           .map((m) => normalizePath(m.path));
 
+        // pass to modal
         setPhotoProduct({
           ...product,
           defaultPhoto,
@@ -177,154 +154,91 @@ export default function ProductPage() {
       notify({ type: "error", message: err.message });
     }
   };
-  const toTitleCase = (str = "") =>
-    str
-      .trim()
-      .toLowerCase()
-      .split(/\s+/) // split by one or more spaces
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(" ");
 
   const columns = useMemo(() => {
     const cols = [
       {
         title: "ល.រ",
+        render: (_, __, idx) => (
+          <p className="text-center font-semibold">{idx + 1}</p>
+        ),
         width: 40,
-        render: (_, record, idx) => {
-          if (record.isCategory) {
-            return {
-              children: (
-                <span className="font-semibold text-gray-600 bg-grre">
-                  📦 {toTitleCase(record.category)} ({record.count} Products)
-                </span>
-              ),
-              props: {
-                colSpan: cols.length, // 🔹 span across all columns
-              },
-            };
-          }
-          return <p className="text-center font-semibold">{idx}</p>;
-        },
       },
       {
         title: "លេខកូដ",
         dataIndex: "code",
-        width: 100,
-        render: (val, record) => {
-          if (record.isCategory) {
-            return { props: { colSpan: 0 } }; // 🔹 hide under merged row
-          }
-          return (
-            <span
-              className={`${
-                can("edit")
-                  ? "text-blue-600 hover:underline cursor-pointer"
-                  : "text-gray-700"
-              } font-light`}
-              onClick={() => can("edit") && handleOpenModal(record)}
-            >
-              {val}
-            </span>
-          );
-        },
+        render: (val, record) => (
+          <span
+            className={`${
+              can("edit")
+                ? "text-blue-600 hover:underline cursor-pointer"
+                : "text-gray-700"
+            } font-light`}
+            onClick={() => can("edit") && handleOpenModal(record)}
+          >
+            {val}
+          </span>
+        ),
       },
       {
         title: "រូបភាព",
         align: "center",
-        width: 80,
-        render: (_, record) => {
-          if (record.isCategory) return { props: { colSpan: 0 } };
-          return (
-            <span
-              className={`${
-                can("edit")
-                  ? "text-yellow-700 hover:underline cursor-pointer text-xl"
-                  : "text-gray-700 text-xl"
-              } font-light`}
-              onClick={() => can("edit") && handleOpenPhotoModal(record)}
-            >
-              <PictureOutlined />
-            </span>
-          );
-        },
+        render: (_, record) => (
+          <span
+            className={`${
+              can("edit")
+                ? "text-yellow-700 hover:underline cursor-pointer text-xl"
+                : "text-gray-700 text-xl"
+            } font-light`}
+            onClick={() => can("edit") && handleOpenPhotoModal(record)}
+          >
+            <PictureOutlined />
+          </span>
+        ),
       },
       {
         title: "ឈ្មោះ",
         dataIndex: "name",
-        render: (val, record) => {
-          if (record.isCategory) return { props: { colSpan: 0 } };
-          return (
-            <span
-              className={`${
-                can("edit")
-                  ? "text-blue-600 hover:underline cursor-pointer"
-                  : "text-gray-700"
-              } font-light`}
-              onClick={() => can("edit") && handleOpenModal(record)}
-            >
-              {val}
-            </span>
-          );
-        },
+        render: (val, record) => (
+          <span
+            className={`${
+              can("edit")
+                ? "text-blue-600 hover:underline cursor-pointer"
+                : "text-gray-700"
+            } font-light`}
+            onClick={() => can("edit") && handleOpenModal(record)}
+          >
+            {val}
+          </span>
+        ),
       },
-      {
-        title: "ឯកតា",
-        dataIndex: "uom",
-        align: "center",
-        width: 100,
-      },
+      { title: "ប្រភេទ", dataIndex: "category" },
       ...(can("cost")
         ? [
             {
               title: "តម្លៃដើម ($)",
               dataIndex: "costPrice",
               align: "right",
-              width: 120,
-              render: (v, record) => {
-                if (record.isCategory) return { props: { colSpan: 0 } };
-                return v ? v.toFixed(2) : "0.00";
-              },
+              render: (v) => (v ? v.toFixed(2) : "0.00"),
             },
           ]
         : []),
       {
-        title: "តម្លៃលក់រាយ ($)",
+        title: "តម្លៃលក់ ($)",
         dataIndex: "salePrice",
         align: "right",
-        width: 120,
-        render: (v, record) => {
-          if (record.isCategory) return { props: { colSpan: 0 } };
-          return v ? v.toFixed(2) : "0.00";
-        },
-      },
-      {
-        title: "តម្លៃលក់ដុំ ($)",
-        dataIndex: "wholesalePrice",
-        align: "right",
-        width: 120,
-        render: (v, record) => {
-          if (record.isCategory) return { props: { colSpan: 0 } };
-          return v ? v.toFixed(2) : "0.00";
-        },
+        render: (v) => (v ? v.toFixed(2) : "0.00"),
       },
       {
         title: "ចំនួន",
         dataIndex: "qty",
         align: "center",
-        width: 100,
-        render: (v, record) => {
-          if (record.isCategory) return { props: { colSpan: 0 } };
-          return v ?? 0;
-        },
+        render: (v) => v ?? 0,
       },
       {
         title: "សរុប ($)",
         align: "right",
-        width: 120,
-        render: (_, record) => {
-          if (record.isCategory) return { props: { colSpan: 0 } };
-          return ((record.salePrice || 0) * (record.qty || 0)).toFixed(2);
-        },
+        render: (_, r) => ((r.salePrice || 0) * (r.qty || 0)).toFixed(2),
       },
     ];
 
@@ -333,64 +247,57 @@ export default function ProductPage() {
         title: "Action",
         dataIndex: "id",
         align: "center",
-        width: 120,
-        render: (_, record) => {
-          if (record.isCategory) return { props: { colSpan: 0 } };
-          return (
-            <Space>
-              {can("add") && (
-                <Button
-                  type="default"
-                  style={{
-                    color: "#d46b08",
-                    borderColor: "#ffa940",
-                    backgroundColor: "#fff",
-                  }}
-                  icon={<CopyOutlined />}
-                  size="small"
-                  shape="circle"
-                  title="Copy"
-                  onClick={() => handleDuplicate(record)}
-                />
-              )}
-              {can("edit") && (
-                <Button
-                  type="default"
-                  icon={<EditOutlined />}
-                  size="small"
-                  shape="circle"
-                  title="Edit"
-                  style={{ color: "#1890ff", borderColor: "#40a9ff" }}
-                  onClick={() => handleOpenModal(record)}
-                />
-              )}
-              {can("delete") && (
-                <Button
-                  type="default"
-                  icon={<DeleteOutlined />}
-                  size="small"
-                  shape="circle"
-                  style={{ color: "#ff4d4f", borderColor: "#ff7875" }}
-                  title="Delete"
-                  onClick={() => console.log(record)}
-                />
-              )}
-            </Space>
-          );
-        },
+        render: (_, record) => (
+          <Space>
+            {can("add") && (
+              <Button
+                type="default"
+                style={{
+                  color: "#d46b08",
+                  borderColor: "#ffa940",
+                  backgroundColor: "#fff",
+                }}
+                icon={<CopyOutlined />}
+                size="small"
+                shape="circle"
+                title="Copy"
+                onClick={() => handleDuplicate(record)}
+              />
+            )}
+            {can("edit") && (
+              <Button
+                type="default"
+                icon={<EditOutlined />}
+                size="small"
+                shape="circle"
+                title="Edit"
+                style={{ color: "#1890ff", borderColor: "#40a9ff" }}
+                onClick={() => handleOpenModal(record)}
+              />
+            )}
+            {can("delete") && (
+              <Button
+                type="default"
+                icon={<DeleteOutlined />}
+                size="small"
+                shape="circle"
+                style={{ color: "#ff4d4f", borderColor: "#ff7875" }}
+                title="Delete"
+                onClick={() => console.log(record)}
+              />
+            )}
+          </Space>
+        ),
       });
     }
-
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [perms]);
 
   return (
-    <div className="px-2 py-1">
-      {" "}
-      {/* 🔹 tighter page padding */}
+    <div className="p-4">
       {/* Top bar */}
-      <div className="flex flex-wrap items-center justify-between mb-2 gap-2">
+      <div className="flex flex-wrap items-center justify-between mb-4 gap-2">
         <div className="flex gap-2">
           <Select
             defaultValue={pageSize}
@@ -438,52 +345,44 @@ export default function ProductPage() {
           )}
         </div>
       </div>
+
       {/* Table */}
       <Table
         rowClassName={(record) =>
-          record.isCategory
-            ? "bg-gray-100 text-blue-700 font-semibold text-sm"
-            : selectedRowKeys.includes(record.id)
-            ? "bg-blue-100"
-            : ""
+          selectedRowKeys.includes(record.id) ? "bg-blue-500" : ""
         }
         rowSelection={{
           selectedRowKeys,
           onChange: (keys) => setSelectedRowKeys(keys),
-          getCheckboxProps: (record) => ({
-            disabled: record.isCategory,
-          }),
         }}
         columns={columns}
         dataSource={Array.isArray(data) ? data : []}
-        rowKey="key"
+        rowKey="id"
         bordered
+        scroll={{ x: "max-content" }}
+        sticky
         size="small"
         pagination={{ pageSize: pageSize, showSizeChanger: true }}
         loading={loading}
-        scroll={{ x: "max-content", y: 500 }} // ✅ keep scroll but hide scrollbar
-        sticky={{ offsetHeader: 0, offsetSummary: 0 }}
         summary={(pageData) => {
           let total = 0;
           pageData.forEach((r) => {
-            if (!r.isCategory) {
-              total += (r.salePrice || 0) * (r.qty || 0);
-            }
+            total += (r.salePrice || 0) * (r.qty || 0);
           });
+          const span = Math.max(1, (columns?.length || 1) - 2);
           return (
-            <Table.Summary fixed>
-              <Table.Summary.Row>
-                <Table.Summary.Cell
-                  colSpan={columns.length - 1}
-                  className="text-right font-bold"
-                >
-                  Total
-                </Table.Summary.Cell>
-                <Table.Summary.Cell className="text-right font-bold">
-                  {total.toFixed(2)} $
-                </Table.Summary.Cell>
-              </Table.Summary.Row>
-            </Table.Summary>
+            <Table.Summary.Row>
+              <Table.Summary.Cell
+                colSpan={span}
+                className="text-right font-bold"
+              >
+                Total
+              </Table.Summary.Cell>
+              <Table.Summary.Cell className="text-right font-bold" colSpan={2}>
+                {total.toFixed(2)} $
+              </Table.Summary.Cell>
+              <Table.Summary.Cell />
+            </Table.Summary.Row>
           );
         }}
         locale={
@@ -492,6 +391,7 @@ export default function ProductPage() {
             : undefined
         }
       />
+
       {/* Product Modal */}
       <ProductModal
         open={modalOpen}
@@ -527,6 +427,7 @@ export default function ProductPage() {
           }
         }}
       />
+
       {/* Product Photo Modal */}
       <ProductPhotoModal
         open={photoModalOpen}
@@ -535,7 +436,7 @@ export default function ProductPage() {
         defaultPhoto={photoProduct?.defaultPhoto}
         otherPhotos={photoProduct?.otherPhotos || []}
         onSaved={() => {
-          if (photoProduct) handleOpenPhotoModal(photoProduct);
+          if (photoProduct) handleOpenPhotoModal(photoProduct); // refresh after upload/delete
         }}
       />
     </div>
