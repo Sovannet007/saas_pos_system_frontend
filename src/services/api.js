@@ -51,8 +51,14 @@ export const saveRolePermission = (payload) =>
 export const getProducts = (payload) =>
   api.post("/api/v1/product/list", payload);
 
+export const printProduct = (payload) =>
+  api.post("/api/v1/product/print", payload);
+
 export const saveProduct = (payload) =>
   api.post("/api/v1/product/save", payload);
+
+export const getProductDetail = ({ id }) =>
+  api.get(`/api/v1/product/detail/${id}`);
 
 // ✅ New: Upload & delete photo
 export const uploadProductPhoto = (formData) =>
@@ -66,13 +72,16 @@ export const deleteProductPhoto = (payload) =>
   api.post("/api/v1/product/delete-photo", payload);
 
 // -------------------- Master Endpoint --------------------
-export const getMaster = (payload) =>
-  api.post("/api/v1/product/master-list", payload);
-export const saveCategory = (payload) => {
-  api.post("/api/v1/master/category-save", payload);
+export const getMaster = (payload) => api.post("/api/v1/master/list", payload);
+export const saveMaster = (payload) => api.post("/api/v1/master/save", payload);
+export const deleteMaster = (payload) => {
+  api.post("/api/v1/master/master-delete", payload);
 };
-export const saveUom = (payload) => {
-  api.post("/api/v1/master/uom-save", payload);
-};
+
+// -------------------- User Management Endpoint --------------------
+export const getUserList = (payload) => api.post("/api/v1/user/list", payload);
+export const saveUser = (payload) => api.post("/api/v1/user/save", payload);
+export const changePassword = (payload) =>
+  api.post("/api/v1/user/change-password", payload);
 
 export default api;

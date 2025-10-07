@@ -87,6 +87,7 @@ export default function Sidebar({ items = [], collapsed, onToggle }) {
                   collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"
                 }`}
               >
+                {/* module_display */}
                 {m.label}
               </span>
             </Link>

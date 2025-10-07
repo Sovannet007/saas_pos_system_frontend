@@ -1,15 +1,36 @@
 import { useEffect, useMemo, useState } from "react";
-import { Table, Switch, Card, Spin, Empty, Tag } from "antd";
-import { getRolePermissions, saveRolePermission } from "../services/api";
+import {
+  Table,
+  Switch,
+  Card,
+  Spin,
+  Empty,
+  Button,
+  Modal,
+  Form,
+  Input,
+} from "antd";
+import { PlusOutlined, EditOutlined } from "@ant-design/icons";
+import {
+  getRolePermissions,
+  saveRolePermission,
+  saveMaster,
+} from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { notify } from "../services/notify";
+import { usePagePerms } from "../context/MenuContext";
 
 export default function RoleManagementPage() {
+  const permissions = usePagePerms("Role");
+  const can = (k) => permissions?.full || !!permissions?.[k];
   const { currentCompany } = useAuth();
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState({}); // { 'roleId-moduleId-perm': true }
+  const [saving, setSaving] = useState({});
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingRole, setEditingRole] = useState(null);
+  const [form] = Form.useForm();
 
   const loadPermissions = async () => {
     if (!currentCompany?.id) return;
@@ -44,13 +65,18 @@ export default function RoleManagementPage() {
 
   useEffect(() => {
     loadPermissions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentCompany?.id]);
 
   const saveSwitch = async (record, perm, value) => {
+    if (!can("edit")) {
+      notify({ type: "warning", message: "No permission to edit" });
+      return;
+    }
+
     const key = `${record.role_id}-${record.module_id}-${perm}`;
     setSaving((s) => ({ ...s, [key]: true }));
 
-    // Update UI instantly
     setRows((prev) =>
       prev.map((it) => {
         if (it.role_id !== record.role_id || it.module_id !== record.module_id)
@@ -88,7 +114,6 @@ export default function RoleManagementPage() {
         cost: perm === "cost" ? (value ? 1 : 0) : record.cost ? 1 : 0,
       });
 
-      // ✅ success toast
       notify({
         type: "success",
         message: `${perm.toUpperCase()} ${value ? "enabled" : "disabled"}`,
@@ -120,8 +145,8 @@ export default function RoleManagementPage() {
   const makeColumns = () => [
     {
       title: "Module Name",
-      dataIndex: "module_name",
-      key: "module_name",
+      dataIndex: "module_display",
+      key: "module_display",
       render: (text) => (
         <span className="font-medium text-blue-600 cursor-pointer underline">
           {text}
@@ -139,6 +164,7 @@ export default function RoleManagementPage() {
             checked={record[perm]}
             size="small"
             loading={!!saving[key]}
+            disabled={!can("edit")}
             onChange={(val) => saveSwitch(record, perm, val)}
             style={{
               backgroundColor: record[perm] ? "#52c41a" : "#a6aebc",
@@ -150,53 +176,161 @@ export default function RoleManagementPage() {
     })),
   ];
 
+  const handleOpenModal = (role) => {
+    setEditingRole(role || null);
+    form.resetFields();
+    if (role) {
+      form.setFieldsValue({
+        name: role.role_name,
+        description: role.description || "",
+      });
+    }
+    setModalOpen(true);
+  };
+
+  const handleSaveRole = async () => {
+    try {
+      const values = await form.validateFields();
+      await saveMaster({
+        companyId: currentCompany.id,
+        Id: editingRole?.role_id || 0,
+        Name: values.name,
+        Descriptions: values.description,
+        Command: "role",
+      });
+      notify({
+        type: "success",
+        message: `Role ${editingRole ? "updated" : "created"} successfully`,
+      });
+      setModalOpen(false);
+      loadPermissions();
+    } catch (e) {
+      notify({ type: "error", message: e.message });
+    }
+  };
+
+  // 🟢 Always render the modal here, outside any return branch
+  const RoleModal = (
+    <Modal
+      open={modalOpen}
+      onCancel={() => setModalOpen(false)}
+      onOk={handleSaveRole}
+      title={editingRole ? "Edit Role" : "New Role"}
+      okText="Save"
+      destroyOnClose
+    >
+      <Form form={form} layout="vertical" preserve={false}>
+        <Form.Item
+          name="name"
+          label="Role Name"
+          rules={[{ required: true, message: "Please enter role name" }]}
+        >
+          <Input placeholder="Enter role name" />
+        </Form.Item>
+
+        <Form.Item name="description" label="Description">
+          <Input.TextArea placeholder="Enter description" />
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+
   if (loading) {
     return (
-      <div className="grid place-items-center py-10">
-        <Spin size="large" />
-      </div>
+      <>
+        <div className="grid place-items-center py-10">
+          <Spin size="large" />
+        </div>
+        {RoleModal}
+      </>
     );
   }
 
   if (!rows.length) {
     return (
-      <Card title="Role Management" bordered={false}>
-        <Empty description="No permission data" />
-      </Card>
+      <>
+        <Card
+          title={
+            <div className="flex justify-between items-center">
+              <span className="text-xl font-semibold">Role Management</span>
+              {can("add") && (
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => handleOpenModal()}
+                >
+                  New Role
+                </Button>
+              )}
+            </div>
+          }
+          variant="simple"
+        >
+          <Empty description="No permission data" />
+        </Card>
+        {RoleModal}
+      </>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {Object.entries(groupedByRole).map(([roleName, roleRows]) => (
-        <Card
-          key={roleName}
-          title={
-            <div className="flex items-center  gap-2">
-              <span className="text-[17px]​ font-normal">
-                ការគ្រប់គ្រងសិទ្ទប្រើប្រាស់ចំពោះតួនាទី
-              </span>
-              <span className="font-semibold text-xl text-red-600">
-                {roleName}
-              </span>
-            </div>
-          }
-          bordered={false}
-          className="shadow-md rounded-xl"
-          headStyle={{ background: "#f9fafb", borderRadius: "8px 8px 0 0" }}
-          bodyStyle={{ padding: "0" }}
-        >
-          <Table
-            rowKey={(r) => `${r.role_id}-${r.module_id}`}
-            dataSource={roleRows}
-            columns={makeColumns()}
-            pagination={false}
-            size="middle"
+    <>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center px-2">
+          <span className="text-xl font-semibold">Role Management</span>
+          {can("add") && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => handleOpenModal()}
+            >
+              New Role
+            </Button>
+          )}
+        </div>
+        {Object.entries(groupedByRole).map(([roleName, roleRows]) => (
+          <Card
+            key={roleName}
+            title={
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <span className="text-[17px] font-normal">
+                    ការគ្រប់គ្រងសិទ្ទប្រើប្រាស់ចំពោះតួនាទី
+                  </span>
+                  <span className="font-semibold text-xl text-red-600">
+                    {roleName}
+                  </span>
+                </div>
+                {can("edit") && (
+                  <Button
+                    size="small"
+                    type="default"
+                    icon={<EditOutlined />}
+                    onClick={() => handleOpenModal(roleRows[0])}
+                  >
+                    Edit Role
+                  </Button>
+                )}
+              </div>
+            }
             bordered={false}
-            className="rounded-lg modern-table"
-          />
-        </Card>
-      ))}
-    </div>
+            className="shadow-md rounded-xl"
+            headStyle={{ background: "#f9fafb", borderRadius: "8px 8px 0 0" }}
+            bodyStyle={{ padding: "0" }}
+          >
+            <Table
+              rowKey={(r) => `${r.role_id}-${r.module_id}`}
+              dataSource={roleRows}
+              columns={makeColumns()}
+              pagination={false}
+              size="middle"
+              bordered={false}
+              className="rounded-lg modern-table"
+            />
+          </Card>
+        ))}
+      </div>
+      {RoleModal}
+    </>
   );
 }

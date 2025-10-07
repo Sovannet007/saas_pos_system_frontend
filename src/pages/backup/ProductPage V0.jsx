@@ -14,12 +14,12 @@ import {
   getMaster,
   saveProduct,
   getProductMedia,
-} from "../services/api";
-import { useAuth } from "../context/AuthContext";
-import { usePagePerms } from "../context/MenuContext";
-import ProductModal from "../components/Ui/ProductModel";
-import ProductPhotoModal from "../components/Ui/ProductPhotoModel";
-import { notify } from "../services/notify";
+} from "../../services/api";
+import { useAuth } from "../../context/AuthContext";
+import { usePagePerms } from "../../context/MenuContext";
+import ProductModal from "../../components/Ui/ProductModel";
+import ProductPhotoModal from "../../components/Ui/ProductPhotoModel";
+import { notify } from "../../services/notify";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 

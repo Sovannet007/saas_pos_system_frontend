@@ -14,14 +14,22 @@ import {
   getMaster,
   saveProduct,
   getProductMedia,
-  getProductDetail,
-} from "../services/api";
-import { useAuth } from "../context/AuthContext";
-import { usePagePerms } from "../context/MenuContext";
-import ProductModal from "../components/Ui/ProductModel";
-import ProductPhotoModal from "../components/Ui/ProductPhotoModel";
-import { notify } from "../services/notify";
-import ProductPrintModal from "../components/Ui/ProductPrintModal";
+} from "../../services/api";
+import { useAuth } from "../../context/AuthContext";
+import { usePagePerms } from "../../context/MenuContext";
+import ProductModal from "../../components/Ui/ProductModel";
+import ProductPhotoModal from "../../components/Ui/ProductPhotoModel";
+import { notify } from "../../services/notify";
+import ProductPrintModal from "../../components/Ui/ProductPrintModal";
+import { Command } from "lucide-react";
+
+const API_BASE = import.meta.env.VITE_API_BASE || "";
+
+const normalizePath = (path) => {
+  if (!path) return null;
+  if (path.startsWith("http")) return path;
+  return `${API_BASE}${path}`;
+};
 
 export default function ProductPage() {
   const { currentCompany } = useAuth();
@@ -33,20 +41,18 @@ export default function ProductPage() {
   const [uoms, setUoms] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
-
-  // modals
+  const [keyword, setKeyword] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState("view");
-  const [productDetail, setProductDetail] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+
+  // photo modal
   const [photoModalOpen, setPhotoModalOpen] = useState(false);
   const [photoProduct, setPhotoProduct] = useState(null);
+
+  // print modal
   const [printModalOpen, setPrintModalOpen] = useState(false);
-
-  // pagination and search
   const [pageSize, setPageSize] = useState(10);
-  const [keyword, setKeyword] = useState("");
 
-  // trigger data change
   useEffect(() => {
     if (!currentCompany?.id) return;
     if (!can("list")) {
@@ -58,10 +64,11 @@ export default function ProductPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentCompany?.id, keyword]);
 
-  // search
   const loadFilters = async () => {
     try {
-      const res = await getMaster({ companyId: currentCompany.id });
+      const res = await getMaster({
+        companyId: currentCompany.id,
+      });
       setCategories(res?.data?.category || []);
       setUoms(res?.data?.uom || []);
     } catch (e) {
@@ -73,33 +80,13 @@ export default function ProductPage() {
     }
   };
 
-  // data from api
   const loadData = async () => {
     if (!can("list")) return;
     setLoading(true);
     try {
       const res = await getProducts({ companyId: currentCompany.id });
+      let rows = Array.isArray(res?.data?.product) ? res.data.product : [];
 
-      // ✅ Main list (first result set)
-      const productList = Array.isArray(res?.data?.product)
-        ? res.data.product
-        : [];
-
-      // ✅ Today action list (second result set)
-      const todayList = Array.isArray(res?.data?.today) ? res.data.today : [];
-
-      let rows = [...productList];
-
-      // ✅ “Today” group if API returned any
-      if (todayList.length > 0) {
-        // mark category as Today for grouping
-        todayList.forEach((p) => {
-          p.category = "Today";
-        });
-        rows = [...todayList, ...rows];
-      }
-
-      // ✅ Keyword filter
       if (keyword) {
         const kw = keyword.toLowerCase();
         rows = rows.filter(
@@ -109,31 +96,30 @@ export default function ProductPage() {
         );
       }
 
-      // ✅ Group by category
+      // 🔹 Group products by category
       const groups = {};
       rows.forEach((p) => {
         if (!groups[p.category]) groups[p.category] = [];
         groups[p.category].push(p);
       });
 
+      // 🔹 Flatten into rows with category header rows
       const groupedRows = [];
-      Object.entries(groups)
-        .sort(([a], [b]) => (a === "Today" ? -1 : b === "Today" ? 1 : 0))
-        .forEach(([cat, items]) => {
-          groupedRows.push({
-            isCategory: true,
-            key: `cat-${cat}`,
-            category: toTitleCase(cat),
-            count: items.length,
-          });
-          items.forEach((p) =>
-            groupedRows.push({
-              ...p,
-              isCategory: false,
-              key: `prod-${p.id}`,
-            })
-          );
+      Object.entries(groups).forEach(([cat, items]) => {
+        groupedRows.push({
+          isCategory: true,
+          key: `cat-${cat}`,
+          category: toTitleCase(cat), // ✅ format here
+          count: items.length, // product count
         });
+        items.forEach((p) =>
+          groupedRows.push({
+            ...p,
+            isCategory: false,
+            key: `prod-${p.id}`,
+          })
+        );
+      });
 
       setData(groupedRows);
     } catch (e) {
@@ -147,70 +133,41 @@ export default function ProductPage() {
     }
   };
 
-  // open product modal for create or update
-  const handleOpenModal = async (product, mode = "edit") => {
-    // check mode and permission
-    if (mode === "edit" && !can("edit")) {
+  const handleOpenModal = (product) => {
+    if (product && !can("edit")) {
       notify({ type: "warning", message: "អ្នកមិនមានសិទ្ធិកែសម្រួលទេ" });
       return;
     }
-    if (mode === "add" && !can("add")) {
+    if (!product && !can("add")) {
       notify({ type: "warning", message: "អ្នកមិនមានសិទ្ធិបន្ថែមទេ" });
       return;
     }
-    // get product detail if it have id provide
-    if (product?.id) {
-      try {
-        const res = await getProductDetail({ id: product.id });
-        if (res.data?.code === 200) {
-          setProductDetail(res.data);
-        } else {
-          notify({ type: "error", message: res.data?.message });
-          return;
-        }
-      } catch (err) {
-        notify({ type: "error", message: err.message });
-        return;
-      }
-    } else {
-      setProductDetail(null);
-    }
-
-    setModalMode(mode);
+    setSelectedProduct(product || null);
     setModalOpen(true);
   };
 
-  // duplicate product handler
-  const handleDuplicate = async (product) => {
+  const handleDuplicate = (product) => {
     if (!can("add")) {
       notify({ type: "warning", message: "អ្នកមិនមានសិទ្ធិបន្ថែមទេ" });
       return;
     }
-    try {
-      const res = await getProductDetail({ id: product.id });
-      if (res.data?.code === 200) {
-        setProductDetail({
-          ...res.data,
-          product: res.data.product.map((p) => ({ ...p, id: null })),
-        });
-        setModalMode("add");
-        setModalOpen(true);
-      }
-    } catch (err) {
-      notify({ type: "error", message: err.message });
-    }
+    notify({ type: "info", message: "ការចម្លងទិន្ន័យថ្មី" });
+    setSelectedProduct({ ...product, id: null });
+    setModalOpen(true);
   };
 
-  // open product photo modal handler
   const handleOpenPhotoModal = async (product) => {
     try {
       const res = await getProductMedia({ id: product.id });
       if (res.data?.code === 200) {
         const media = res.data.media || [];
-        const defaultPhoto = media.find((m) => m.isDefault)?.path || null;
+
+        const defaultPhoto = normalizePath(
+          media.find((m) => m.isDefault)?.path
+        );
         const otherPhotos = media
           .filter((m) => !m.isDefault)
-          .map((m) => m.path);
+          .map((m) => normalizePath(m.path));
 
         setPhotoProduct({
           ...product,
@@ -222,64 +179,75 @@ export default function ProductPage() {
         notify({ type: "error", message: res?.data?.message });
       }
     } catch (err) {
+      console.error("media error:", err);
       notify({ type: "error", message: err.message });
     }
   };
-
   const toTitleCase = (str = "") =>
     str
       .trim()
       .toLowerCase()
-      .split(/\s+/)
+      .split(/\s+/) // split by one or more spaces
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(" ");
-
-  // --- table header columns name khmer and english---
-  const bilingual = (kh, en) => (
-    <div style={{ lineHeight: "16px" }}>
-      <div>{kh}</div>
-      <div style={{ fontSize: 11, color: "#888" }}>{en}</div>
-    </div>
-  );
 
   const columns = useMemo(() => {
     const cols = [
       {
-        title: bilingual("រូបភាព", "Image"),
-        align: "center", // keep product image centered
-        width: 80,
-        render: (_, record) => {
+        title: "ល.រ",
+        width: 40,
+        render: (_, record, idx) => {
           if (record.isCategory) {
             return {
               children: (
-                <div className="w-full text-left font-semibold text-gray-600 pr-3">
+                <span className="font-semibold text-gray-600 bg-grre">
                   📦 {toTitleCase(record.category)} ({record.count} Products)
-                </div>
+                </span>
               ),
               props: {
-                colSpan: can("add") || can("edit") || can("delete") ? 7 : 6,
-                style: { backgroundColor: "#f9fafb" }, // optional: highlight bg
+                colSpan: cols.length, // 🔹 span across all columns
               },
             };
           }
-          if (record.mediaPath) {
-            return (
-              <img
-                src={record.mediaPath}
-                alt="product"
-                className="h-12 w-12 object-contain cursor-pointer mx-auto"
-                onClick={() => handleOpenPhotoModal(record)}
-              />
-            );
+          return <p className="text-center font-semibold">{idx}</p>;
+        },
+      },
+      {
+        title: "លេខកូដ",
+        dataIndex: "code",
+        width: 100,
+        render: (val, record) => {
+          if (record.isCategory) {
+            return { props: { colSpan: 0 } }; // 🔹 hide under merged row
           }
           return (
             <span
               className={`${
                 can("edit")
-                  ? "text-yellow-700 cursor-pointer text-xl"
-                  : "text-gray-400 text-xl"
-              }`}
-              onClick={() => handleOpenPhotoModal(record)}
+                  ? "text-blue-600 hover:underline cursor-pointer"
+                  : "text-gray-700"
+              } font-light`}
+              onClick={() => can("edit") && handleOpenModal(record)}
+            >
+              {val}
+            </span>
+          );
+        },
+      },
+      {
+        title: "រូបភាព",
+        align: "center",
+        width: 80,
+        render: (_, record) => {
+          if (record.isCategory) return { props: { colSpan: 0 } };
+          return (
+            <span
+              className={`${
+                can("edit")
+                  ? "text-yellow-700 hover:underline cursor-pointer text-xl"
+                  : "text-gray-700 text-xl"
+              } font-light`}
+              onClick={() => can("edit") && handleOpenPhotoModal(record)}
             >
               <PictureOutlined />
             </span>
@@ -287,72 +255,94 @@ export default function ProductPage() {
         },
       },
       {
-        title: bilingual("ឈ្មោះទំនិញ", "Product Name"),
+        title: "ឈ្មោះ",
         dataIndex: "name",
-        render: (val, record) =>
-          record.isCategory ? (
-            { props: { colSpan: 0 } }
-          ) : (
+        render: (val, record) => {
+          if (record.isCategory) return { props: { colSpan: 0 } };
+          return (
             <span
               className={`${
                 can("edit")
                   ? "text-blue-600 hover:underline cursor-pointer"
                   : "text-gray-700"
               } font-light`}
-              onClick={() => handleOpenModal(record, "edit")}
+              onClick={() => can("edit") && handleOpenModal(record)}
             >
               {val}
             </span>
-          ),
-      },
-      {
-        title: bilingual("ឯកតា", "UOM"),
-        dataIndex: "uom",
-        align: "center",
-        width: 100,
-        render: (val, record) =>
-          record.isCategory ? { props: { colSpan: 0 } } : val,
-      },
-      {
-        title: bilingual("ស្តុកសរុប", "Total Stock"),
-        dataIndex: "totalStock",
-        align: "center",
-        width: 100,
-        render: (val, record) =>
-          record.isCategory ? { props: { colSpan: 0 } } : val ?? 0,
-      },
-      {
-        title: bilingual("តម្លៃលក់រាយ ($)", "Min - Max"),
-        dataIndex: "minSalePrice",
-        align: "right",
-        width: 140,
-        render: (val, record) => {
-          if (record.isCategory) return { props: { colSpan: 0 } };
-          const max = record.maxSalePrice || 0;
-          return val === max
-            ? (val || 0).toFixed(2)
-            : `${(val || 0).toFixed(2)} - ${max.toFixed(2)}`;
+          );
         },
       },
       {
-        title: bilingual("ចំនួនវ៉ារ្យ៉ង់", "Variants"),
-        dataIndex: "variantCount",
+        title: "ឯកតា",
+        dataIndex: "uom",
         align: "center",
         width: 100,
-        render: (val, record) =>
-          record.isCategory ? { props: { colSpan: 0 } } : val,
+      },
+      ...(can("cost")
+        ? [
+            {
+              title: "តម្លៃដើម ($)",
+              dataIndex: "costPrice",
+              align: "right",
+              width: 120,
+              render: (v, record) => {
+                if (record.isCategory) return { props: { colSpan: 0 } };
+                return v ? v.toFixed(2) : "0.00";
+              },
+            },
+          ]
+        : []),
+      {
+        title: "តម្លៃលក់រាយ ($)",
+        dataIndex: "salePrice",
+        align: "right",
+        width: 120,
+        render: (v, record) => {
+          if (record.isCategory) return { props: { colSpan: 0 } };
+          return v ? v.toFixed(2) : "0.00";
+        },
+      },
+      {
+        title: "តម្លៃលក់ដុំ ($)",
+        dataIndex: "wholesalePrice",
+        align: "right",
+        width: 120,
+        render: (v, record) => {
+          if (record.isCategory) return { props: { colSpan: 0 } };
+          return v ? v.toFixed(2) : "0.00";
+        },
+      },
+      {
+        title: "ចំនួន",
+        dataIndex: "qty",
+        align: "center",
+        width: 100,
+        render: (v, record) => {
+          if (record.isCategory) return { props: { colSpan: 0 } };
+          return v ?? 0;
+        },
+      },
+      {
+        title: "សរុប ($)",
+        align: "right",
+        width: 120,
+        render: (_, record) => {
+          if (record.isCategory) return { props: { colSpan: 0 } };
+          return ((record.salePrice || 0) * (record.qty || 0)).toFixed(2);
+        },
       },
     ];
 
     if (can("add") || can("edit") || can("delete")) {
       cols.push({
-        title: bilingual("សកម្មភាព", "Action"),
+        title: "Action",
+        dataIndex: "id",
         align: "center",
         width: 120,
-        render: (_, record) =>
-          record.isCategory ? (
-            { props: { colSpan: 0 } }
-          ) : (
+        render: (_, record) => {
+          if (record.isCategory) return { props: { colSpan: 0 } };
+          return (
             <Space>
               {can("add") && (
                 <Button
@@ -377,7 +367,7 @@ export default function ProductPage() {
                   shape="circle"
                   title="Edit"
                   style={{ color: "#1890ff", borderColor: "#40a9ff" }}
-                  onClick={() => handleOpenModal(record, "edit")}
+                  onClick={() => handleOpenModal(record)}
                 />
               )}
               {can("delete") && (
@@ -392,7 +382,8 @@ export default function ProductPage() {
                 />
               )}
             </Space>
-          ),
+          );
+        },
       });
     }
 
@@ -402,6 +393,8 @@ export default function ProductPage() {
 
   return (
     <div className="px-2 py-1">
+      {" "}
+      {/* 🔹 tighter page padding */}
       {/* Top bar */}
       <div className="flex flex-wrap items-center justify-between mb-2 gap-2">
         <div className="flex gap-2">
@@ -444,14 +437,13 @@ export default function ProductPage() {
               size="middle"
               icon={<PlusOutlined />}
               className="bg-green-500 text-white hover:bg-green-600"
-              onClick={() => handleOpenModal(null, "add")}
+              onClick={() => handleOpenModal(null)}
             >
               បន្ថែម
             </Button>
           )}
         </div>
       </div>
-
       {/* Table */}
       <Table
         rowClassName={(record) =>
@@ -475,38 +467,57 @@ export default function ProductPage() {
         size="small"
         pagination={{ pageSize: pageSize, showSizeChanger: true }}
         loading={loading}
-        scroll={{ x: "max-content", y: 500 }}
+        scroll={{ x: "max-content", y: 500 }} // ✅ keep scroll but hide scrollbar
         sticky={{ offsetHeader: 0, offsetSummary: 0 }}
+        summary={(pageData) => {
+          let total = 0;
+          pageData.forEach((r) => {
+            if (!r.isCategory) {
+              total += (r.salePrice || 0) * (r.qty || 0);
+            }
+          });
+          return (
+            <Table.Summary fixed>
+              <Table.Summary.Row>
+                <Table.Summary.Cell
+                  colSpan={columns.length - 1}
+                  className="text-right font-bold"
+                >
+                  Total
+                </Table.Summary.Cell>
+                <Table.Summary.Cell className="text-right font-bold">
+                  {total.toFixed(2)} $
+                </Table.Summary.Cell>
+              </Table.Summary.Row>
+            </Table.Summary>
+          );
+        }}
         locale={
           !can("list")
             ? { emptyText: "អ្នកមិនមានសិទ្ធិបង្ហាញទិន្នន័យទេ" }
             : undefined
         }
       />
-
       {/* Product Modal */}
       <ProductModal
         open={modalOpen}
-        mode={modalMode}
-        onClose={() => {
-          setModalOpen(false);
-          loadData(); // ✅ reload after closing modal
-        }}
-        productDetail={productDetail}
+        onClose={() => setModalOpen(false)}
+        initialValues={selectedProduct}
         categories={categories}
         uoms={uoms}
+        readOnly={!can("edit") && !can("add")}
+        onReloadMaster={loadFilters}
         onSave={async (values) => {
           if (!can("add") && !can("edit")) return;
           try {
             const res = await saveProduct(values);
-            console.log(res);
-            if (res?.data?.code == "200") {
+            if (res?.data?.ProductId) {
               notify({
                 type: "success",
                 message: res?.data?.message || "Product saved.",
               });
               setModalOpen(false);
-              loadData(); // ✅ reload after save
+              loadData();
             } else {
               notify({
                 type: "error",
@@ -522,24 +533,18 @@ export default function ProductPage() {
           }
         }}
       />
-
-      {/* Photo Modal */}
+      {/* Product Photo Modal */}
       <ProductPhotoModal
         open={photoModalOpen}
-        onClose={() => {
-          setPhotoModalOpen(false);
-          loadData(); // ✅ reload when photo modal closed
-        }}
+        onClose={() => setPhotoModalOpen(false)}
         productId={photoProduct?.id}
         defaultPhoto={photoProduct?.defaultPhoto}
         otherPhotos={photoProduct?.otherPhotos || []}
         onSaved={() => {
-          setPhotoModalOpen(false);
-          loadData(); // ✅ reload after saving
+          if (photoProduct) handleOpenPhotoModal(photoProduct);
         }}
       />
-
-      {/* Print Modal */}
+      {/* Product Print Modal */}
       <ProductPrintModal
         open={printModalOpen}
         onClose={() => setPrintModalOpen(false)}

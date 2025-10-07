@@ -16,15 +16,20 @@ import {
 // ✅ page imports
 import DashboardPage from "../../pages/DashboardPage";
 import ProductPage from "../../pages/ProductPage";
-import InvoicePage from "../../pages/InvoicePage";
+import InvoiceTabs from "../../pages/invoice/index";
 import RoleManagementPage from "../../pages/RoleManagementPage";
+import MasterDataPage from "../../pages/MasterDataPage";
+import UserManagementPage from "../../pages/UserManagementPage";
 
 // ✅ Page map (module_name from backend → actual React Pages)
 const pageMap = {
+  // module_name: Page
   Dashboard: DashboardPage,
   Product: ProductPage,
-  Invoice: InvoicePage,
-  "Role Management": RoleManagementPage,
+  Invoice: InvoiceTabs,
+  Role: RoleManagementPage,
+  Master: MasterDataPage,
+  User: UserManagementPage,
 };
 
 function LoadingOverlay({ show, label = "កំពុងទាញទិន្នន័យ..." }) {
@@ -71,7 +76,7 @@ export default function MasterLayout() {
       })
       .map((m) => ({
         key: m.module_id,
-        label: m.module_name,
+        label: m.module_display,
         path: "/" + m.module_route.replace(/^\//, ""), // absolute for Sidebar
         route: m.module_route.replace(/^\//, ""), // relative for <Route>
         moduleName: m.module_name,
@@ -187,8 +192,8 @@ export default function MasterLayout() {
                 ក្រុមហ៊ុន {currentCompany?.name}
               </div>
               <div className="flex items-center gap-3">
-                {isSystemOwner && companyOptions.length > 0 && (
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
+                  {isSystemOwner && companyOptions.length > 0 && (
                     <Select
                       className="min-w-[300px]"
                       placeholder="ជ្រើសរើសក្រុមហ៊ុន"
@@ -197,15 +202,15 @@ export default function MasterLayout() {
                       onChange={handleSwitchCompany}
                       optionFilterProp="label"
                     />
-                    <Button
-                      type="default"
-                      shape="circle"
-                      icon={<HomeOutlined />}
-                      title="ទៅផ្ទាំងដើម"
-                      onClick={() => navigate("/dashboard")}
-                    />
-                  </div>
-                )}
+                  )}
+                  <Button
+                    type="default"
+                    shape="circle"
+                    icon={<HomeOutlined />}
+                    title="ទៅផ្ទាំងដើម"
+                    onClick={() => navigate("/dashboard")}
+                  />
+                </div>
                 {/* ✅ User dropdown */}
                 <Dropdown menu={userMenu} trigger={["click"]}>
                   <Avatar

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal, Input, Form, Button } from "antd";
-import { saveUom } from "../../services/api"; // implement in your API service
+import { saveMaster } from "../../services/api"; // implement in your API service
 import { notify } from "../../services/notify";
 
 export default function UomModal({ open, onClose, onSaved, initialData }) {
@@ -21,7 +21,8 @@ export default function UomModal({ open, onClose, onSaved, initialData }) {
       setLoading(true);
 
       // call api service
-      await saveUom(values);
+      await saveMaster({ ...values, Command: "uom" }); // call api service
+
       notify({
         type: "success",
         message: "UOM saved.",

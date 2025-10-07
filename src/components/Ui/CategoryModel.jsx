@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Modal, Input, Form, Button } from "antd";
-import { saveCategory } from "../../services/api"; // assume your API service
+import { saveMaster } from "../../services/api"; // assume your API service
 import { notify } from "../../services/notify";
 
 export default function CategoryModal({ open, onClose, onSaved, initialData }) {
@@ -19,7 +19,7 @@ export default function CategoryModal({ open, onClose, onSaved, initialData }) {
     try {
       const values = await form.validateFields();
       setLoading(true);
-      await saveCategory(values); // call api service
+      await saveMaster({ ...values, Command: "category" }); // call api service
       notify({
         type: "success",
         message: "Category saved.",
