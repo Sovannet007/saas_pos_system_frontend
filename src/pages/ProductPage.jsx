@@ -8,6 +8,7 @@ import {
   DeleteOutlined,
   EditOutlined,
   PictureOutlined,
+  CalendarOutlined,
 } from "@ant-design/icons";
 import {
   getProducts,
@@ -31,6 +32,7 @@ export default function ProductPage() {
   const [data, setData] = useState([]);
   const [categories, setCategories] = useState([]);
   const [uoms, setUoms] = useState([]);
+  const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
@@ -43,8 +45,11 @@ export default function ProductPage() {
   const [printModalOpen, setPrintModalOpen] = useState(false);
 
   // pagination and search
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(20);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [keyword, setKeyword] = useState("");
+  const [showTodayOnly, setShowTodayOnly] = useState(false);
 
   // trigger data change
   useEffect(() => {
@@ -54,16 +59,17 @@ export default function ProductPage() {
       return;
     }
     loadFilters();
-    loadData();
+    loadData(currentPage, pageSize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentCompany?.id, keyword]);
+  }, [currentCompany?.id, keyword, currentPage, pageSize, showTodayOnly]);
 
-  // search
+  // load master filters
   const loadFilters = async () => {
     try {
       const res = await getMaster({ companyId: currentCompany.id });
       setCategories(res?.data?.category || []);
       setUoms(res?.data?.uom || []);
+      setBrands(res?.data?.brand || []);
     } catch (e) {
       notify({
         type: "error",
@@ -74,32 +80,26 @@ export default function ProductPage() {
   };
 
   // data from api
-  const loadData = async () => {
+  const loadData = async (page = 1, size = 20) => {
     if (!can("list")) return;
     setLoading(true);
     try {
-      const res = await getProducts({ companyId: currentCompany.id });
+      const res = await getProducts({
+        companyId: currentCompany.id,
+        page,
+        pageSize: size,
+      });
 
-      // ✅ Main list (first result set)
       const productList = Array.isArray(res?.data?.product)
         ? res.data.product
         : [];
-
-      // ✅ Today action list (second result set)
       const todayList = Array.isArray(res?.data?.today) ? res.data.today : [];
+      const total = res?.data?.total?.[0]?.totalCount || 0;
 
-      let rows = [...productList];
+      let rows = showTodayOnly ? [...todayList] : [...productList];
+      const count = showTodayOnly ? todayList.length : total;
+      setTotalCount(count);
 
-      // ✅ “Today” group if API returned any
-      if (todayList.length > 0) {
-        // mark category as Today for grouping
-        todayList.forEach((p) => {
-          p.category = "Today";
-        });
-        rows = [...todayList, ...rows];
-      }
-
-      // ✅ Keyword filter
       if (keyword) {
         const kw = keyword.toLowerCase();
         rows = rows.filter(
@@ -109,7 +109,6 @@ export default function ProductPage() {
         );
       }
 
-      // ✅ Group by category
       const groups = {};
       rows.forEach((p) => {
         if (!groups[p.category]) groups[p.category] = [];
@@ -117,23 +116,21 @@ export default function ProductPage() {
       });
 
       const groupedRows = [];
-      Object.entries(groups)
-        .sort(([a], [b]) => (a === "Today" ? -1 : b === "Today" ? 1 : 0))
-        .forEach(([cat, items]) => {
-          groupedRows.push({
-            isCategory: true,
-            key: `cat-${cat}`,
-            category: toTitleCase(cat),
-            count: items.length,
-          });
-          items.forEach((p) =>
-            groupedRows.push({
-              ...p,
-              isCategory: false,
-              key: `prod-${p.id}`,
-            })
-          );
+      Object.entries(groups).forEach(([cat, items]) => {
+        groupedRows.push({
+          isCategory: true,
+          key: `cat-${cat}`,
+          category: toTitleCase(cat),
+          count: items.length,
         });
+        items.forEach((p) =>
+          groupedRows.push({
+            ...p,
+            isCategory: false,
+            key: `prod-${p.id}`,
+          })
+        );
+      });
 
       setData(groupedRows);
     } catch (e) {
@@ -147,9 +144,7 @@ export default function ProductPage() {
     }
   };
 
-  // open product modal for create or update
   const handleOpenModal = async (product, mode = "edit") => {
-    // check mode and permission
     if (mode === "edit" && !can("edit")) {
       notify({ type: "warning", message: "អ្នកមិនមានសិទ្ធិកែសម្រួលទេ" });
       return;
@@ -158,7 +153,6 @@ export default function ProductPage() {
       notify({ type: "warning", message: "អ្នកមិនមានសិទ្ធិបន្ថែមទេ" });
       return;
     }
-    // get product detail if it have id provide
     if (product?.id) {
       try {
         const res = await getProductDetail({ id: product.id });
@@ -180,7 +174,6 @@ export default function ProductPage() {
     setModalOpen(true);
   };
 
-  // duplicate product handler
   const handleDuplicate = async (product) => {
     if (!can("add")) {
       notify({ type: "warning", message: "អ្នកមិនមានសិទ្ធិបន្ថែមទេ" });
@@ -201,7 +194,6 @@ export default function ProductPage() {
     }
   };
 
-  // open product photo modal handler
   const handleOpenPhotoModal = async (product) => {
     try {
       const res = await getProductMedia({ id: product.id });
@@ -234,7 +226,6 @@ export default function ProductPage() {
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(" ");
 
-  // --- table header columns name khmer and english---
   const bilingual = (kh, en) => (
     <div style={{ lineHeight: "16px" }}>
       <div>{kh}</div>
@@ -246,7 +237,7 @@ export default function ProductPage() {
     const cols = [
       {
         title: bilingual("រូបភាព", "Image"),
-        align: "center", // keep product image centered
+        align: "center",
         width: 80,
         render: (_, record) => {
           if (record.isCategory) {
@@ -257,8 +248,8 @@ export default function ProductPage() {
                 </div>
               ),
               props: {
-                colSpan: can("add") || can("edit") || can("delete") ? 7 : 6,
-                style: { backgroundColor: "#f9fafb" }, // optional: highlight bg
+                colSpan: can("add") || can("edit") || can("delete") ? 8 : 7,
+                style: { backgroundColor: "#f9fafb" },
               },
             };
           }
@@ -328,10 +319,11 @@ export default function ProductPage() {
         width: 140,
         render: (val, record) => {
           if (record.isCategory) return { props: { colSpan: 0 } };
-          const max = record.maxSalePrice || 0;
-          return val === max
-            ? (val || 0).toFixed(2)
-            : `${(val || 0).toFixed(2)} - ${max.toFixed(2)}`;
+          if (record.isVariant)
+            return `${(record.minSalePrice || 0).toFixed(2)} - ${(
+              record.maxSalePrice || 0
+            ).toFixed(2)}`;
+          return (record.minSalePrice || 0).toFixed(2);
         },
       },
       {
@@ -406,9 +398,12 @@ export default function ProductPage() {
       <div className="flex flex-wrap items-center justify-between mb-2 gap-2">
         <div className="flex gap-2">
           <Select
-            defaultValue={pageSize}
+            value={pageSize}
             style={{ minWidth: 70 }}
-            onChange={(e) => setPageSize(e)}
+            onChange={(e) => {
+              setPageSize(e);
+              setCurrentPage(1);
+            }}
             options={[
               { value: 10, label: "10" },
               { value: 20, label: "20" },
@@ -424,6 +419,20 @@ export default function ProductPage() {
             style={{ minWidth: 300, borderRadius: "8px" }}
             onChange={(e) => setKeyword(e.target.value)}
           />
+
+          {/* 🔹 Show Today Products Button */}
+          <Button
+            type={showTodayOnly ? "primary" : "default"}
+            size="middle"
+            icon={<CalendarOutlined />}
+            onClick={() => {
+              setCurrentPage(1);
+              setShowTodayOnly(!showTodayOnly);
+            }}
+          >
+            {showTodayOnly ? "បង្ហាញទំនិញទាំងអស់" : "បង្ហាញទំនិញថ្ងៃនេះ"}
+          </Button>
+
           {can("print") && (
             <Button
               type="default"
@@ -473,7 +482,13 @@ export default function ProductPage() {
         rowKey="key"
         bordered
         size="small"
-        pagination={{ pageSize: pageSize, showSizeChanger: true }}
+        pagination={{
+          current: currentPage,
+          pageSize: pageSize,
+          total: totalCount,
+          showSizeChanger: false,
+          onChange: (page) => setCurrentPage(page),
+        }}
         loading={loading}
         scroll={{ x: "max-content", y: 500 }}
         sticky={{ offsetHeader: 0, offsetSummary: 0 }}
@@ -490,23 +505,23 @@ export default function ProductPage() {
         mode={modalMode}
         onClose={() => {
           setModalOpen(false);
-          loadData(); // ✅ reload after closing modal
+          loadData(currentPage, pageSize);
         }}
         productDetail={productDetail}
         categories={categories}
         uoms={uoms}
+        brands={brands}
         onSave={async (values) => {
           if (!can("add") && !can("edit")) return;
           try {
             const res = await saveProduct(values);
-            console.log(res);
             if (res?.data?.code == "200") {
               notify({
                 type: "success",
                 message: res?.data?.message || "Product saved.",
               });
               setModalOpen(false);
-              loadData(); // ✅ reload after save
+              loadData(currentPage, pageSize);
             } else {
               notify({
                 type: "error",
@@ -528,14 +543,14 @@ export default function ProductPage() {
         open={photoModalOpen}
         onClose={() => {
           setPhotoModalOpen(false);
-          loadData(); // ✅ reload when photo modal closed
+          loadData(currentPage, pageSize);
         }}
         productId={photoProduct?.id}
         defaultPhoto={photoProduct?.defaultPhoto}
         otherPhotos={photoProduct?.otherPhotos || []}
         onSaved={() => {
           setPhotoModalOpen(false);
-          loadData(); // ✅ reload after saving
+          loadData(currentPage, pageSize);
         }}
       />
 

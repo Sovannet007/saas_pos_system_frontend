@@ -12,8 +12,7 @@ export default function MasterDataPage() {
   ];
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2 className="mb-4">Master Data</h2>
+    <div style={{ padding: 8 }}>
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}

@@ -1,9 +1,9 @@
-// src/context/AuthContext.jsx
 import { createContext, useContext, useMemo, useState, useEffect } from "react";
 import {
   login as loginApi,
   selectCompany as selectCompanyApi,
 } from "../services/api";
+import { notify } from "../services/notify";
 
 const AuthCtx = createContext(null);
 export const useAuth = () => useContext(AuthCtx);
@@ -22,10 +22,11 @@ export const AuthProvider = ({ children }) => {
     const raw = localStorage.getItem("auth_companies");
     return raw ? JSON.parse(raw) : [];
   });
+
   // ✅ flag if role is system owner
   const [isSystemOwner, setIsSystemOwner] = useState(false);
 
-  // ✅ recompute isSystemOwner base on user
+  // ✅ recompute isSystemOwner base on user ( this system role_id==1 is developer)
   useEffect(() => {
     setIsSystemOwner(!!user && user.role_id === 1);
   }, [user]);

@@ -1,35 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
-import { Routes, Route, useNavigate } from "react-router-dom";
+import { Routes, Route, NavLink } from "react-router-dom";
 import { getMenuAccess } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
-import Sidebar from "./Sidebar";
-import { Select, Avatar, Dropdown, Modal, Button } from "antd";
-import { HomeOutlined } from "@ant-design/icons";
-import SimpleBar from "simplebar-react";
-
-// ⬇️ import from MenuContext so we can set menu for perms hook
 import {
   useMenu,
   normalizeMenu as ctxNormalize,
 } from "../../context/MenuContext";
+import { Avatar, Dropdown, Modal, Button, Select } from "antd";
+import * as LucideIcons from "lucide-react";
+import SimpleBar from "simplebar-react";
 
-// ✅ page imports
+// ✅ Page imports
 import DashboardPage from "../../pages/DashboardPage";
 import ProductPage from "../../pages/ProductPage";
-import InvoiceTabs from "../../pages/invoice/index";
+import InvoicePage from "../../pages/invoice/InvoiceMainPage";
 import RoleManagementPage from "../../pages/RoleManagementPage";
 import MasterDataPage from "../../pages/MasterDataPage";
 import UserManagementPage from "../../pages/UserManagementPage";
+import SystemSettings from "../../pages/SystemSetting";
 
-// ✅ Page map (module_name from backend → actual React Pages)
 const pageMap = {
   // module_name: Page
   Dashboard: DashboardPage,
   Product: ProductPage,
-  Invoice: InvoiceTabs,
+  Invoice: InvoicePage,
   Role: RoleManagementPage,
   Master: MasterDataPage,
   User: UserManagementPage,
+  SysSetting: SystemSettings,
 };
 
 function LoadingOverlay({ show, label = "កំពុងទាញទិន្នន័យ..." }) {
@@ -53,18 +51,21 @@ export default function MasterLayout() {
     selectCompany,
     logout,
   } = useAuth();
-  const navigate = useNavigate();
 
-  // ⬇️ get setMenu from MenuContext to feed permissions
+  const companyName =
+    currentCompany?.name ||
+    (currentCompany?.id
+      ? `Company #${currentCompany.id}`
+      : "មិនទាន់ជ្រើសរើសក្រុមហ៊ុន");
+  const companyCode = currentCompany?.code || null;
   const { setMenu: setCtxMenu } = useMenu();
 
-  const [collapsed, setCollapsed] = useState(false);
   const [menu, setMenu] = useState([]);
   const [switching, setSwitching] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // ✅ Normalize menu (kept your structure)
+  // ✅ normalize menu from API (same logic as sidebar)
   const normalizeMenu = (apiMenu) => {
     const seen = new Set();
     return (apiMenu || [])
@@ -77,10 +78,10 @@ export default function MasterLayout() {
       .map((m) => ({
         key: m.module_id,
         label: m.module_display,
-        path: "/" + m.module_route.replace(/^\//, ""), // absolute for Sidebar
-        route: m.module_route.replace(/^\//, ""), // relative for <Route>
+        path: "/" + m.module_route.replace(/^\//, ""),
+        route: m.module_route.replace(/^\//, ""),
         moduleName: m.module_name,
-        icon: m.module_icon, // e.g. "Package", "FileText"
+        icon: m.module_icon,
         perms: {
           full: !!m.full,
           list: !!m.list,
@@ -93,37 +94,29 @@ export default function MasterLayout() {
       }));
   };
 
-  // ✅ Fetch menu
   const fetchMenu = async () => {
     const { data } = await getMenuAccess({ companyId: user?.company_id || 0 });
     const normalized = data?.menu ? normalizeMenu(data.menu) : [];
-    setMenu(normalized); // for Sidebar (your UI)
-    setCtxMenu(ctxNormalize(data?.menu || [])); // for permissions context
+    setMenu(normalized);
+    setCtxMenu(ctxNormalize(data?.menu || []));
   };
 
-  // ✅ Fetch menu when company changes
-  useEffect(
-    () => {
-      fetchMenu();
-    },
-    // eslint-disable-next-line
-    [user?.company_id]
-  );
+  useEffect(() => {
+    fetchMenu();
+  }, [user?.company_id]);
 
   const companyOptions = useMemo(
     () =>
       (companies || []).map((c) => ({
         value: c.company_id,
         label: `${c.company_name} (${c.company_code})`,
-        name: c.company_name,
-        code: c.company_code,
       })),
     [companies]
   );
 
   const handleSwitchCompany = async (companyId) => {
     setSwitching(true);
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 1200));
     try {
       await selectCompany(Number(companyId));
       await fetchMenu();
@@ -141,7 +134,7 @@ export default function MasterLayout() {
             className="text-sm cursor-pointer"
             onClick={() => setSettingsOpen(true)}
           >
-            ព័ត៏មានអ្នកប្រើប្រាស់
+            ព័ត៌មានអ្នកប្រើប្រាស់
           </span>
         ),
       },
@@ -162,119 +155,146 @@ export default function MasterLayout() {
 
   return (
     <>
-      <LoadingOverlay
-        show={switching}
-        label="កំពុងប្ដូរក្រុមហ៊ុន សូមរង់ចាំ..."
-      />
+      <LoadingOverlay show={switching} label="កំពុងប្ដូរក្រុមហ៊ុន..." />
 
-      <div className="flex min-h-screen">
-        {/* ✅ Sidebar: Dashboard + dynamic menu */}
-        <Sidebar
-          items={[
-            {
-              key: "dashboard",
-              label: "Dashboard",
-              path: "/dashboard",
-              icon: "Home",
-            },
-            ...menu, // dynamic menu from API
-          ]}
-          collapsed={collapsed}
-          onToggle={() => setCollapsed((v) => !v)}
-        />
-
-        {/* Right content */}
-        <div className="flex-1 flex flex-col">
-          {/* Top bar */}
-          <div className="sticky top-0 z-20 bg-white border-b">
-            <div className="h-14 flex items-center justify-between px-4">
-              <div className="font-semibold">
-                ក្រុមហ៊ុន {currentCompany?.name}
+      <div className="flex flex-col min-h-screen bg-gray-50">
+        {/* ✅ Horizontal Navigation Bar (Enhanced) */}
+        <div className="sticky top-0 z-30 bg-white border-b shadow-sm">
+          <div className="flex items-center justify-between px-6 h-14">
+            {/* 🔹 Left Section: Logo + Company Info + Menu */}
+            <div className="flex items-center space-x-6">
+              {/* Logo + Company Info */}
+              <div className="flex items-center border-r pr-6">
+                <div className="w-9 h-9 rounded-xl bg-gray-900 text-white grid place-items-center text-[11px] font-semibold">
+                  SP
+                </div>
+                <div className="flex flex-col ml-3 min-w-0">
+                  <span className="font-semibold truncate">SaaS Pos</span>
+                  <span className="text-[11px] text-gray-500 truncate">
+                    {companyName} {companyCode ? `(${companyCode})` : ""}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  {isSystemOwner && companyOptions.length > 0 && (
+
+              {/* Menu items */}
+              <div className="flex items-center space-x-6">
+                {/* Home */}
+                <NavLink
+                  to="/dashboard"
+                  className={({ isActive }) =>
+                    `flex flex-col items-center text-xs ${
+                      isActive ? "text-blue-600 font-semibold" : "text-gray-600"
+                    } hover:text-blue-500`
+                  }
+                >
+                  <LucideIcons.Home size={20} />
+                  Home
+                </NavLink>
+
+                {/* Dynamic menu */}
+                {menu.map((m) => {
+                  const Icon = LucideIcons[m.icon] || LucideIcons.Circle;
+                  return (
+                    <NavLink
+                      key={m.key}
+                      to={m.path}
+                      className={({ isActive }) =>
+                        `flex flex-col items-center text-xs ${
+                          isActive
+                            ? "text-blue-600 font-semibold"
+                            : "text-gray-600"
+                        } hover:text-blue-500`
+                      }
+                    >
+                      <Icon size={20} />
+                      {m.label}
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 🔹 Right Section: Actions */}
+            <div className="flex items-center space-x-4">
+              {/* Company Switcher */}
+              {isSystemOwner && companyOptions.length > 0 && (
+                <>
+                  <div className="border-r pr-4">
                     <Select
-                      className="min-w-[300px]"
+                      size="small"
+                      style={{ width: 220 }}
                       placeholder="ជ្រើសរើសក្រុមហ៊ុន"
                       value={currentCompany?.id ?? undefined}
                       options={companyOptions}
                       onChange={handleSwitchCompany}
-                      optionFilterProp="label"
                     />
-                  )}
-                  <Button
-                    type="default"
-                    shape="circle"
-                    icon={<HomeOutlined />}
-                    title="ទៅផ្ទាំងដើម"
-                    onClick={() => navigate("/dashboard")}
+                  </div>
+                </>
+              )}
+
+              {/* Notifications */}
+              <div className="relative border-r pr-4">
+                <button
+                  className="relative text-gray-600 hover:text-blue-600 transition-colors"
+                  title="Notifications"
+                >
+                  <LucideIcons.Bell size={20} />
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-semibold px-[4px] py-[1px] rounded-full">
+                    3
+                  </span>
+                </button>
+              </div>
+
+              {/* User Profile */}
+              <Dropdown menu={userMenu} trigger={["click"]}>
+                <div className="flex items-center gap-2 cursor-pointer">
+                  <Avatar
+                    src="https://cdn-icons-png.flaticon.com/512/219/219970.png"
+                    size={32}
                   />
                 </div>
-                {/* ✅ User dropdown */}
-                <Dropdown menu={userMenu} trigger={["click"]}>
-                  <Avatar
-                    style={{ backgroundColor: "#111827" }}
-                    className="cursor-pointer"
-                  >
-                    {(user?.username || "?").slice(0, 2).toUpperCase()}
-                  </Avatar>
-                </Dropdown>
-              </div>
+              </Dropdown>
             </div>
           </div>
-
-          {/* Scrollable content */}
-          <SimpleBar style={{ height: "calc(100vh - 56px)" }} autoHide={false}>
-            <div className="p-6">
-              <Routes>
-                {/* ✅ Fixed dashboard */}
-                <Route path="dashboard" element={<DashboardPage />} />
-
-                {/* ✅ Dynamic routes from api */}
-                {menu.map((m) => {
-                  const Page = pageMap[m.moduleName];
-                  return Page ? (
-                    <Route key={m.key} path={m.route} element={<Page />} />
-                  ) : (
-                    <Route
-                      key={m.key}
-                      path={m.route}
-                      element={<div>🚧 {m.moduleName} not implemented</div>}
-                    />
-                  );
-                })}
-
-                {/* fallback → dashboard */}
-                <Route path="*" element={<DashboardPage />} />
-              </Routes>
-            </div>
-          </SimpleBar>
         </div>
+
+        {/* ✅ Content Area */}
+        <SimpleBar style={{ height: "calc(100vh - 56px)" }} autoHide={false}>
+          <div className="p-6">
+            <Routes>
+              <Route path="dashboard" element={<DashboardPage />} />
+              {menu.map((m) => {
+                const Page = pageMap[m.moduleName];
+                return Page ? (
+                  <Route key={m.key} path={m.route} element={<Page />} />
+                ) : (
+                  <Route
+                    key={m.key}
+                    path={m.route}
+                    element={<div>🚧 {m.moduleName} not implemented</div>}
+                  />
+                );
+              })}
+              <Route path="*" element={<DashboardPage />} />
+            </Routes>
+          </div>
+        </SimpleBar>
       </div>
 
-      {/* User Settings Modal (unchanged UI) */}
+      {/* ✅ User Settings Modal */}
       <Modal
         open={settingsOpen}
         onCancel={() => setSettingsOpen(false)}
         centered
         width={700}
         footer={null}
-        title={<span className="font-semibold">ព័ត៏មានអ្នកប្រើប្រាស់</span>}
+        title={<span className="font-semibold">ព័ត៌មានអ្នកប្រើប្រាស់</span>}
       >
         <div className="space-y-4">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex justify-evenly flex-1">
-              <div className="text-[18px] text-gray-500">
-                ឈ្មោះ : {user?.username}
-              </div>
-              <div className="text-[18px] text-gray-500">
-                ក្រុមហ៊ុន : {currentCompany?.name}
-              </div>
-              <div className="text-[18px] text-gray-500">
-                តួនាទី : {user?.role_name}
-              </div>
-            </div>
+          <div className="flex justify-evenly text-[18px] text-gray-500">
+            <div>ឈ្មោះ : {user?.username}</div>
+            <div>ក្រុមហ៊ុន : {currentCompany?.name}</div>
+            <div>តួនាទី : {user?.role_name}</div>
           </div>
 
           <div className="border rounded-lg overflow-hidden">
@@ -309,7 +329,7 @@ export default function MasterLayout() {
         </div>
       </Modal>
 
-      {/* Logout Modal (unchanged UI) */}
+      {/* ✅ Logout Modal */}
       <Modal
         open={logoutOpen}
         onCancel={() => setLogoutOpen(false)}

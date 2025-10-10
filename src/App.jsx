@@ -16,6 +16,9 @@ import MasterLayout from "./components/layout/MasterLayout";
 import NotificationListener from "./components/NotificationListener";
 // import GlobalLoader from "./components/GlobalLoader";
 
+// pos screen
+import PosScreen from "./pages/invoice/PosScreen";
+
 export default function App() {
   return (
     <ConfigProvider
@@ -69,6 +72,18 @@ export default function App() {
                     <ProtectedRoute>
                       <RequireCompany>
                         <MasterLayout />
+                      </RequireCompany>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* for pos screen */}
+                <Route
+                  path="/pos"
+                  element={
+                    <ProtectedRoute>
+                      <RequireCompany>
+                        <PosScreen />
                       </RequireCompany>
                     </ProtectedRoute>
                   }

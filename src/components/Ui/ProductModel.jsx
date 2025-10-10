@@ -7,10 +7,11 @@ import {
   Button,
   Row,
   Col,
-  Divider,
-  Table,
   Space,
   Tabs,
+  Checkbox,
+  InputNumber,
+  Table,
 } from "antd";
 import {
   PlusOutlined,
@@ -28,15 +29,17 @@ import { usePagePerms } from "../../context/MenuContext";
 import VariantModal from "../modal/VariantModal";
 import CategoryModal from "./CategoryModel";
 import UomModal from "./UomModel";
+import BrandModal from "./BrandModel";
 
 export default function ProductModal({
   open,
-  mode = "view", // "view" | "edit" | "add"
+  mode = "view",
   onClose,
   onSave,
-  productDetail, // { product:[], media:[], variants:[] }
+  productDetail,
   categories = [],
   uoms = [],
+  brands = [],
   onReloadMaster,
 }) {
   const [form] = Form.useForm();
@@ -45,136 +48,184 @@ export default function ProductModal({
   const canCost = can("cost");
   const editorRef = useRef(null);
 
-  const [isFull, setIsFull] = useState(false);
+  const [isFull, setIsFull] = useState(true);
   const [variants, setVariants] = useState([]);
   const [media, setMedia] = useState([]);
-  const [localCats, setLocalCats] = useState(categories);
-  const [localUoms, setLocalUoms] = useState(uoms);
+  const [localCats, setLocalCats] = useState([]);
+  const [localUoms, setLocalUoms] = useState([]);
+  const [localBrands, setLocalBrands] = useState([]);
+  const [hasVariant, setHasVariant] = useState(false);
 
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [uomModalOpen, setUomModalOpen] = useState(false);
+  const [brandModalOpen, setBrandModalOpen] = useState(false);
   const [variantModalOpen, setVariantModalOpen] = useState(false);
   const [selectedVariant, setSelectedVariant] = useState(null);
 
-  useEffect(() => setLocalCats(categories), [categories]);
-  useEffect(() => setLocalUoms(uoms), [uoms]);
-
+  // ✅ Sync master lists safely
   useEffect(() => {
-    if (productDetail?.product?.[0]) {
-      form.setFieldsValue(productDetail.product[0]);
-      setVariants(productDetail.variants || []);
-      setMedia(productDetail.media || []);
+    setLocalCats(Array.isArray(categories) ? categories : []);
+    setLocalUoms(Array.isArray(uoms) ? uoms : []);
+    setLocalBrands(Array.isArray(brands) ? brands : []);
+  }, [categories, uoms, brands]);
+
+  // ✅ Rehydrate form when modal opens
+  useEffect(() => {
+    if (!open) return;
+
+    const p = productDetail?.product?.[0];
+    if (p) {
+      form.setFieldsValue({
+        name: p.name,
+        code: p.code,
+        brandId: p.brandId,
+        uomId: p.uomId,
+        costPrice: p.costPrice,
+        wholePrice: p.wholePrice,
+        salePrice: p.salePrice,
+        description: p.description,
+        categories: productDetail?.category?.map((c) => String(c.id)) || [],
+      });
+
+      setVariants(productDetail?.variants || []);
+      setMedia(productDetail?.media || []);
+      setHasVariant(!!p.isVariant);
     } else {
       form.resetFields();
+      form.setFieldValue("categories", []);
       setVariants([]);
       setMedia([]);
+      setHasVariant(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productDetail]);
+  }, [open, productDetail?.product?.[0]?.id]);
 
   const isView = mode === "view";
   const isEdit = mode === "edit";
   const isAdd = mode === "add";
 
-  // ✅ Reload after save
-  const afterSavedCategory = async () => {
-    setCatModalOpen(false);
-    if (onReloadMaster) {
-      await onReloadMaster();
-    }
-  };
-  const afterSavedUom = async () => {
-    setUomModalOpen(false);
-    if (onReloadMaster) {
-      await onReloadMaster();
+  // ✅ Reload master data
+  const reloadMasters = async () => {
+    if (!onReloadMaster) return {};
+    try {
+      const updated = await onReloadMaster();
+      if (updated?.categories) setLocalCats([...updated.categories]);
+      if (updated?.uoms) setLocalUoms([...updated.uoms]);
+      if (updated?.brands) setLocalBrands([...updated.brands]);
+      return updated;
+    } catch (e) {
+      console.error("Failed reload masters:", e);
+      return {};
     }
   };
 
-  // ✅ Submit product (safe for TinyMCE)
+  const afterSavedCategory = async () => {
+    const updated = await reloadMasters();
+    if (updated?.categories) setLocalCats([...updated.categories]);
+    const current = form.getFieldValue("categories") || [];
+    form.setFieldValue("categories", current);
+    setCatModalOpen(false);
+  };
+  const afterSavedUom = async () => {
+    await reloadMasters();
+    setUomModalOpen(false);
+  };
+  const afterSavedBrand = async () => {
+    await reloadMasters();
+    setBrandModalOpen(false);
+  };
+
+  // ✅ Submit to parent (safe)
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
 
-      // ✅ Ensure description is plain HTML, not a TinyMCE object
-      let descriptionHtml = "";
-      if (editorRef.current) {
-        descriptionHtml = editorRef.current.getContent() || "";
-      } else {
-        descriptionHtml = values.description || "";
-      }
+      const descriptionHtml =
+        typeof editorRef.current?.getContent === "function"
+          ? editorRef.current.getContent()
+          : values.description || "";
 
       const product = productDetail?.product?.[0];
       const payload = {
         ProductId: product?.id || 0,
         Name: values.name,
-        CategoryId: values.categoryId || 0,
+        BrandId: values.brandId || 0,
         UomId: values.uomId || 0,
-        Description: descriptionHtml, // ✅ safe string only
-        Variants: variants.map((v) => ({
-          VariantId: v.variantId || v.id || 0,
-          Name: v.name,
-          Sku: v.sku || "",
-          Barcode: v.barcode || "",
-          CostPrice: parseFloat(v.costPrice || 0),
-          WholesalePrice: parseFloat(v.wholesalePrice || 0),
-          SalePrice: parseFloat(v.salePrice || 0),
-          Qty: parseFloat(v.qty || 0),
-          IsDefault: !!v.isDefault,
-        })),
+        Categories: Array.isArray(values.categories)
+          ? values.categories.map((x) => Number(x))
+          : [],
+        Code: values.code || "",
+        Description: descriptionHtml,
+        CostPrice: parseFloat(values.costPrice || 0),
+        WholePrice: parseFloat(values.wholePrice || 0),
+        RetailPrice: parseFloat(values.salePrice || 0),
+        HasVariant: hasVariant,
+        Variants: hasVariant
+          ? variants.map((v) => ({
+              VariantId: v.variantId || 0,
+              Name: v.name,
+              Sku: v.sku || "",
+              Barcode: v.barcode || "",
+              CostPrice: parseFloat(v.costPrice || 0),
+              WholePrice: parseFloat(v.wholesalePrice || 0),
+              RetailPrice: parseFloat(v.salePrice || 0),
+              Qty: parseFloat(v.qty || 0),
+              IsDefault: !!v.isDefault,
+            }))
+          : [],
       };
 
-      // ✅ payload is now safe to stringify or send via API
-      console.log("Payload ready:", payload);
+      console.log("✅ Save Payload:", {
+        ...payload,
+        Description: "[HTML omitted]",
+      });
       onSave?.(payload);
     } catch (err) {
-      console.error("Validation error:", err);
+      console.error("❌ Validation error:", err);
     }
   };
 
-  // ✅ Variants
+  // ✅ Variant handling
   const handleAddVariant = () => {
     setSelectedVariant(null);
     setVariantModalOpen(true);
   };
-  const handleEditVariant = (record) => {
-    setSelectedVariant(record);
+  const handleEditVariant = (r) => {
+    setSelectedVariant(r);
     setVariantModalOpen(true);
   };
-  const handleSaveVariant = (variant) => {
+
+  // ✅ Always new variantId = 0
+  const handleSaveVariant = (v) => {
     if (selectedVariant) {
       setVariants((prev) =>
-        prev.map((v) =>
-          v.id === selectedVariant.id ? { ...v, ...variant } : v
-        )
+        prev.map((x) => (x.id === selectedVariant.id ? { ...x, ...v } : x))
       );
     } else {
-      setVariants((prev) => [
-        ...prev,
-        { id: Math.floor(Math.random() * 100000), variantId: 0, ...variant },
-      ]);
+      const tempId = `tmp-${Date.now()}`;
+      setVariants((prev) => [...prev, { id: tempId, variantId: 0, ...v }]);
     }
     setVariantModalOpen(false);
   };
 
-  // ✅ Generate barcode
-  const handleGenerateBarcode = (record) => {
+  const handleGenerateBarcode = (r) => {
     setVariants((prev) =>
       prev.map((v) =>
-        v.id === record.id
-          ? { ...v, barcode: Date.now().toString().slice(-8) }
-          : v
+        v.id === r.id ? { ...v, barcode: Date.now().toString().slice(-8) } : v
       )
     );
   };
 
-  // --- UI helpers ---
   const categoryOptions = useMemo(
-    () => localCats.map((c) => ({ value: c.id, label: c.name })),
+    () => localCats.map((c) => ({ label: c.name, value: String(c.id) })),
     [localCats]
   );
   const uomOptions = useMemo(
-    () => localUoms.map((u) => ({ value: u.id, label: u.name })),
+    () => localUoms.map((u) => ({ label: u.name, value: u.id })),
     [localUoms]
+  );
+  const brandOptions = useMemo(
+    () => localBrands.map((b) => ({ label: b.name, value: b.id })),
+    [localBrands]
   );
 
   const variantColumns = [
@@ -238,17 +289,25 @@ export default function ProductModal({
   ].filter(Boolean);
 
   const productId = productDetail?.product?.[0]?.id;
-  const containerMaxHeight = isFull ? "calc(100vh - 140px)" : "70vh";
+  const containerMaxHeight = isFull ? "calc(100vh - 160px)" : "70vh";
 
   return (
     <>
       <style>{`
-        .no-scrollbar {
+        .product-modal .ant-modal-body {
           -ms-overflow-style: none;
           scrollbar-width: none;
         }
-        .no-scrollbar::-webkit-scrollbar {
+        .product-modal .ant-modal-body::-webkit-scrollbar {
           display: none;
+        }
+        .product-modal .ant-modal-content {
+          display: flex;
+          flex-direction: column;
+          max-height: 100vh;
+        }
+        .product-modal .ant-modal-body {
+          flex: 1 1 auto;
         }
       `}</style>
 
@@ -256,15 +315,17 @@ export default function ProductModal({
         open={open}
         onCancel={onClose}
         closable={false}
-        width={isFull ? "100%" : 900}
-        style={isFull ? { top: 0, padding: 0 } : {}}
-        bodyStyle={{ padding: 0 }}
+        width={isFull ? "100%" : 950}
         centered
+        rootClassName="product-modal"
+        style={{ top: isFull ? 8 : undefined }}
+        bodyStyle={{
+          padding: 16,
+          maxHeight: containerMaxHeight,
+          overflowY: "auto",
+        }}
         title={
-          <div
-            className="flex justify-between items-center w-full"
-            style={{ paddingRight: 4 }}
-          >
+          <div className="flex justify-between items-center w-full">
             <span className="font-semibold text-lg">
               {isAdd
                 ? "បញ្ចូលទំនិញថ្មី"
@@ -298,117 +359,160 @@ export default function ProductModal({
           ),
         ]}
       >
-        <div
-          className="modal-body-scroll no-scrollbar"
-          style={{
-            padding: 16,
-            maxHeight: containerMaxHeight,
-            overflowY: "auto",
-            overflowX: "hidden",
-          }}
-        >
-          <Form form={form} layout="vertical" disabled={isView}>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
-                  label="ឈ្មោះផលិតផល"
-                  name="name"
-                  rules={[{ required: true }]}
-                >
-                  <Input placeholder="Enter Product Name" />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item label="ប្រភេទ" name="categoryId">
-                  <Select
-                    options={categoryOptions}
-                    placeholder="ជ្រើសប្រភេទ"
-                    dropdownRender={(menu) => (
-                      <>
-                        {menu}
-                        <Divider style={{ margin: "8px 0" }} />
-                        <Button
-                          type="link"
-                          icon={<PlusOutlined />}
-                          block
-                          onClick={() => setCatModalOpen(true)}
-                        >
-                          បន្ថែមប្រភេទ
-                        </Button>
-                      </>
-                    )}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
+        {/* ✅ Product Info */}
+        <Form form={form} layout="vertical" disabled={isView}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                label="ឈ្មោះផលិតផល"
+                name="name"
+                rules={[{ required: true, message: "សូមបញ្ចូលឈ្មោះផលិតផល" }]}
+              >
+                <Input placeholder="Enter Product Name" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="កូដផលិតផល" name="code">
+                <Input placeholder="Product Code" />
+              </Form.Item>
+            </Col>
+          </Row>
 
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item label="ឯកតា" name="uomId">
-                  <Select
-                    options={uomOptions}
-                    placeholder="ជ្រើសឯកតា"
-                    dropdownRender={(menu) => (
-                      <>
-                        {menu}
-                        <Divider style={{ margin: "8px 0" }} />
-                        <Button
-                          type="link"
-                          icon={<PlusOutlined />}
-                          block
-                          onClick={() => setUomModalOpen(true)}
-                        >
-                          បន្ថែមឯកតា
-                        </Button>
-                      </>
-                    )}
+          <Row gutter={16}>
+            {/* Brand */}
+            <Col span={8}>
+              <Form.Item label="ម៉ាក" required style={{ marginBottom: 0 }}>
+                <Space.Compact style={{ width: "100%" }}>
+                  <Form.Item name="brandId" noStyle>
+                    <Select
+                      allowClear
+                      showSearch
+                      placeholder="ជ្រើសម៉ាក"
+                      options={brandOptions}
+                      style={{ flex: 1 }}
+                      optionFilterProp="label"
+                      onDropdownVisibleChange={(o) => o && reloadMasters()}
+                    />
+                  </Form.Item>
+                  <Button
+                    icon={<PlusOutlined />}
+                    onClick={() => setBrandModalOpen(true)}
                   />
-                </Form.Item>
-              </Col>
-            </Row>
+                </Space.Compact>
+              </Form.Item>
+            </Col>
 
-            {/* <Row gutter={16}> */}
-            <Col span={24}>
-              <Form.Item label="ពិពណ៌នា​ - Description" name="description">
-                <Editor
-                  onInit={(evt, editor) => (editorRef.current = editor)}
-                  apiKey="5wiuf8cmrpbj12787t05xsgbl3xho76t6jh7ij2i6kpcsiv5"
-                  placeholder="ពិពណ៌នា..."
-                  init={{
-                    height: 250,
-                    menubar: false,
-                    plugins: [
-                      "advlist",
-                      "autolink",
-                      "lists",
-                      "link",
-                      "image",
-                      "charmap",
-                      "preview",
-                      "anchor",
-                      "searchreplace",
-                      "visualblocks",
-                      "code",
-                      "fullscreen",
-                      "insertdatetime",
-                      "media",
-                      "table",
-                      "help",
-                      "wordcount",
-                    ],
-                    toolbar:
-                      "undo redo | bold italic underline | alignleft aligncenter alignright | bullist numlist | link image | removeformat",
-                    branding: false,
-                  }}
-                  value={form.getFieldValue("description")}
-                  onEditorChange={(content) =>
-                    form.setFieldValue("description", content)
-                  }
+            {/* Categories */}
+            <Col span={8}>
+              <Form.Item label="ប្រភេទ" required style={{ marginBottom: 0 }}>
+                <Space.Compact style={{ width: "100%" }}>
+                  <Form.Item
+                    name="categories"
+                    noStyle
+                    rules={[{ required: true, message: "សូមជ្រើសប្រភេទ" }]}
+                  >
+                    <Select
+                      mode="multiple"
+                      allowClear
+                      showSearch
+                      maxTagCount="responsive"
+                      style={{ width: "100%" }}
+                      placeholder="ជ្រើសប្រភេទ"
+                      options={categoryOptions}
+                      optionFilterProp="label"
+                      onDropdownVisibleChange={(o) => o && reloadMasters()}
+                    />
+                  </Form.Item>
+                  <Button
+                    icon={<PlusOutlined />}
+                    onClick={() => setCatModalOpen(true)}
+                  />
+                </Space.Compact>
+              </Form.Item>
+            </Col>
+
+            {/* UOM */}
+            <Col span={8}>
+              <Form.Item label="ឯកតា" required style={{ marginBottom: 0 }}>
+                <Space.Compact style={{ width: "100%" }}>
+                  <Form.Item name="uomId" noStyle>
+                    <Select
+                      allowClear
+                      showSearch
+                      placeholder="ជ្រើសឯកតា"
+                      options={uomOptions}
+                      style={{ flex: 1 }}
+                      optionFilterProp="label"
+                      onDropdownVisibleChange={(o) => o && reloadMasters()}
+                    />
+                  </Form.Item>
+                  <Button
+                    icon={<PlusOutlined />}
+                    onClick={() => setUomModalOpen(true)}
+                  />
+                </Space.Compact>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item label="តម្លៃដើម" name="costPrice">
+                <InputNumber
+                  addonAfter="$"
+                  style={{ width: "100%" }}
+                  disabled={hasVariant}
                 />
               </Form.Item>
             </Col>
-          </Form>
+            <Col span={8}>
+              <Form.Item label="លក់ដុំ" name="wholePrice">
+                <InputNumber
+                  addonAfter="$"
+                  style={{ width: "100%" }}
+                  disabled={hasVariant}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="លក់រាយ" name="salePrice">
+                <InputNumber
+                  addonAfter="$"
+                  style={{ width: "100%" }}
+                  disabled={hasVariant}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
 
+          <Checkbox
+            checked={hasVariant}
+            onChange={(e) => setHasVariant(e.target.checked)}
+          >
+            មាន Variant
+          </Checkbox>
+
+          <Form.Item label="ពិពណ៌នា​ - Description" name="description">
+            {open && (
+              <Editor
+                onInit={(evt, editor) => (editorRef.current = editor)}
+                apiKey="5wiuf8cmrpbj12787t05xsgbl3xho76t6jh7ij2i6kpcsiv5"
+                initialValue={form.getFieldValue("description") || ""}
+                init={{
+                  height: 250,
+                  menubar: false,
+                  plugins: ["advlist", "autolink", "lists", "link", "image"],
+                  toolbar:
+                    "undo redo | bold italic underline | alignleft aligncenter alignright | bullist numlist | link image | removeformat",
+                  branding: false,
+                }}
+              />
+            )}
+          </Form.Item>
+        </Form>
+
+        {/* ✅ Variants + Images */}
+        {hasVariant && (
           <Tabs defaultActiveKey="1" className="mt-3">
             <Tabs.TabPane tab="Variants" key="1">
               <Table
@@ -418,7 +522,6 @@ export default function ProductModal({
                 bordered
                 pagination={false}
                 columns={variantColumns}
-                scroll={{ x: true }}
               />
               {(isAdd || isEdit) && (
                 <Button
@@ -432,7 +535,7 @@ export default function ProductModal({
             </Tabs.TabPane>
 
             {productId && (
-              <Tabs.TabPane tab="Images" key="2">
+              <Tabs.TabPane tab="Images" key="3">
                 <div className="flex flex-wrap gap-3">
                   {media.length > 0 ? (
                     media.map((m) => (
@@ -456,10 +559,10 @@ export default function ProductModal({
               </Tabs.TabPane>
             )}
           </Tabs>
-        </div>
+        )}
       </Modal>
 
-      {/* Mini Modals */}
+      {/* Sub Modals */}
       <CategoryModal
         open={catModalOpen}
         onClose={() => setCatModalOpen(false)}
@@ -469,6 +572,11 @@ export default function ProductModal({
         open={uomModalOpen}
         onClose={() => setUomModalOpen(false)}
         onSaved={afterSavedUom}
+      />
+      <BrandModal
+        open={brandModalOpen}
+        onClose={() => setBrandModalOpen(false)}
+        onSaved={afterSavedBrand}
       />
       <VariantModal
         open={variantModalOpen}

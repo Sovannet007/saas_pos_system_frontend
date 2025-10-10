@@ -217,7 +217,6 @@ export default function RoleManagementPage() {
       onOk={handleSaveRole}
       title={editingRole ? "Edit Role" : "New Role"}
       okText="Save"
-      destroyOnClose
     >
       <Form form={form} layout="vertical" preserve={false}>
         <Form.Item
@@ -281,6 +280,7 @@ export default function RoleManagementPage() {
           {can("add") && (
             <Button
               type="primary"
+              className="bg-green-500 text-white hover:bg-green-600"
               icon={<PlusOutlined />}
               onClick={() => handleOpenModal()}
             >

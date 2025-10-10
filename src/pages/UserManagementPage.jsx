@@ -183,7 +183,7 @@ export default function UserManagementPage() {
   }, [currentCompany]);
 
   return (
-    <div className="p-6">
+    <div style={{ padding: 0 }}>
       {/* Header */}
       <div className="flex justify-between items-center mb-4">
         <Title level={3} className="!mb-0">

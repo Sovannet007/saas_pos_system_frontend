@@ -83,5 +83,11 @@ export const getUserList = (payload) => api.post("/api/v1/user/list", payload);
 export const saveUser = (payload) => api.post("/api/v1/user/save", payload);
 export const changePassword = (payload) =>
   api.post("/api/v1/user/change-password", payload);
+export const tanantCompanyList = () =>
+  api.post("/api/v1/user/list-tanant-company");
+
+// -------------------- Invoice Endpoint --------------------
+export const getPosProductList = (payload) =>
+  api.post("/api/v1/invoice/product-pos/list", payload);
 
 export default api;

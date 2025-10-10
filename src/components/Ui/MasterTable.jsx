@@ -76,6 +76,7 @@ export default function MasterTable({ type }) {
       <div style={{ marginBottom: 10 }}>
         <Button
           type="primary"
+          className="bg-green-500 text-white hover:bg-green-600"
           onClick={() => {
             setEditData(null);
             setFormOpen(true);
